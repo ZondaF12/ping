@@ -5,7 +5,7 @@ Monorepo for a minimal **webhook → push notification** flow: your automation c
 ## Layout
 
 - `apps/api` — NestJS + Mongoose + [Expo push](https://docs.expo.dev/push-notifications/sending-notifications/)
-- `apps/mobile` — Expo SDK 55 (iOS-focused); secret in SecureStore, digest + token on the server only (similar idea to [brrr](https://brrr.now/how-it-works/))
+- `apps/mobile` — Expo SDK 55 (iOS-focused); secret in SecureStore, digest + token on the server only
 - `packages/shared` — Zod schemas for webhook and register bodies
 
 ## Prerequisites
