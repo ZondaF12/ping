@@ -6,6 +6,7 @@
     "api": "pnpm --filter @ping/api start:dev",
     "mobile": "pnpm --filter @ping/mobile start",
     "build": "pnpm -r build",
+    "start": "pnpm --filter @ping/api start:prod",
     "lint": "pnpm -r lint"
   },
   "engines": {

@@ -55,7 +55,7 @@ Deploy the **Nest service from the monorepo root** (not `apps/api` alone), so `@
    corepack enable && corepack prepare pnpm@10.33.0 --activate && pnpm install && pnpm --filter @ping/shared build && pnpm --filter @ping/api build
    ```
 
-6. **Start command:**
+6. **Start command:** Railpack looks for a root **`start`** script in `package.json`. This repo defines `"start": "pnpm --filter @ping/api start:prod"`, so you usually **do not** need a custom start command. If your platform still asks for one, use:
 
    ```bash
    pnpm --filter @ping/api start:prod
