@@ -37,6 +37,35 @@ pnpm --filter @ping/api start:dev
 
 Health check: `GET http://127.0.0.1:3000/health`
 
+## Host the API on Railway
+
+Deploy the **Nest service from the monorepo root** (not `apps/api` alone), so `@ping/shared` installs and builds correctly.
+
+1. In [Railway](https://railway.com), **New project** → **Deploy from GitHub** → select this repo.
+2. **Root directory:** leave as the **repository root** (`/`). Do **not** point the service only at `apps/api`.
+3. Add **MongoDB** (Railway’s template) **or** use [MongoDB Atlas](https://www.mongodb.com/atlas). You need a single connection string the API can reach.
+4. On the **API** service → **Variables**, set:
+   - **`MONGODB_URI`** — e.g. paste the Mongo URL from Railway’s Mongo service (`MONGO_URL` / `DATABASE_PRIVATE_URL`, etc.), or your Atlas SRV string. Our code reads `MONGODB_URI` (see `app.module.ts`).
+   - **`SECRET_SALT`** — long random secret; **do not change** after users have registered or their webhook URLs will stop matching stored digests.
+   - **`EXPO_ACCESS_TOKEN`** — only if you enabled Expo’s [push access token](https://docs.expo.dev/push-notifications/sending-notifications/#additional-security).
+   - **`PORT`** — Railway sets this automatically; Nest uses `process.env.PORT` and does not need you to set it unless you override.
+5. **Build command** (service **Settings → Build**), for example:
+
+   ```bash
+   corepack enable && corepack prepare pnpm@10.33.0 --activate && pnpm install && pnpm --filter @ping/shared build && pnpm --filter @ping/api build
+   ```
+
+6. **Start command:**
+
+   ```bash
+   pnpm --filter @ping/api start:prod
+   ```
+
+7. **Networking:** generate a **public domain** for the service (HTTPS). Smoke-test `GET https://YOUR_DOMAIN/health` → `{"ok":true}`.
+8. **Phone / `.env`:** set `EXPO_PUBLIC_API_URL=https://YOUR_DOMAIN` (no trailing slash), restart Metro/reload the dev build, then **Re-register device** so tokens are stored against the hosted API.
+
+Outbound HTTPS to Expo’s push servers (`exp.host`) must be allowed (default on Railway).
+
 ## Register a device (from the app)
 
 The mobile app calls:

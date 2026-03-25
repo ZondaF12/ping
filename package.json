@@ -1,6 +1,7 @@
 {
   "name": "ping",
   "private": true,
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "api": "pnpm --filter @ping/api start:dev",
     "mobile": "pnpm --filter @ping/mobile start",
