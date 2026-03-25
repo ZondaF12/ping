@@ -1,14 +1,17 @@
-import Constants from "expo-constants";
 import * as Device from "expo-device";
-import { Platform, StyleSheet, Text } from "react-native";
+import { isRunningInExpoGo } from "expo";
+import { Platform, StyleSheet, Text, useColorScheme } from "react-native";
+import { Colors } from "@/constants/theme";
 
 /**
  * Surfaces the same limitations Expo logs at runtime (Expo Go, simulator).
  */
 export function PushEnvironmentNote() {
+    const scheme = useColorScheme() === "dark" ? "dark" : "light";
+    const c = Colors[scheme];
     const parts: string[] = [];
 
-    if (Constants.appOwnership === "expo") {
+    if (isRunningInExpoGo()) {
         parts.push(
             "Expo Go: push is limited—in SDK 53+ Android remote push was removed from Expo Go, and iOS push is not fully supported. Use an EAS development build for production-like behavior.",
         );
@@ -22,7 +25,16 @@ export function PushEnvironmentNote() {
 
     if (parts.length === 0) return null;
 
-    return <Text style={styles.text}>{parts.join("\n\n")}</Text>;
+    return (
+        <Text
+            style={[
+                styles.text,
+                { color: c.warningText, backgroundColor: c.warningBg },
+            ]}
+        >
+            {parts.join("\n\n")}
+        </Text>
+    );
 }
 
 const styles = StyleSheet.create({
@@ -30,8 +42,6 @@ const styles = StyleSheet.create({
         marginTop: 14,
         fontSize: 11,
         lineHeight: 16,
-        color: "#8a5a00",
-        backgroundColor: "#fff8e8",
         padding: 10,
         borderRadius: 8,
         overflow: "hidden",

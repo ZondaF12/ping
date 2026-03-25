@@ -5,7 +5,7 @@
         "version": "1.0.0",
         "orientation": "portrait",
         "icon": "./assets/icon.png",
-        "userInterfaceStyle": "light",
+        "userInterfaceStyle": "automatic",
         "scheme": "ping",
         "splash": {
             "image": "./assets/splash-icon.png",
@@ -16,10 +16,7 @@
             "supportsTablet": true,
             "bundleIdentifier": "com.ruaridhbell.ping",
             "infoPlist": {
-                "UIBackgroundModes": [
-                    "remote-notification",
-                    "remote-notification"
-                ],
+                "UIBackgroundModes": ["remote-notification"],
                 "ITSAppUsesNonExemptEncryption": false
             }
         },
@@ -41,12 +38,17 @@
                 {
                     "sounds": []
                 }
-            ]
+            ],
+            "expo-router"
         ],
         "extra": {
             "eas": {
                 "projectId": "fe22d29d-3637-4995-b3d4-3dac67c9bcfb"
             }
+        },
+        "experiments": {
+            "typedRoutes": true,
+            "tsconfigPaths": true
         }
     }
 }
