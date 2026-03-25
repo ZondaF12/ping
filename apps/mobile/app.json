@@ -16,7 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ping.app",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -38,6 +40,11 @@
           "sounds": []
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fe22d29d-3637-4995-b3d4-3dac67c9bcfb"
+      }
+    }
   }
 }

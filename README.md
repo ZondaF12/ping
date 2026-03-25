@@ -84,6 +84,16 @@ Expo prints warnings in Metro for good reason:
 
 For standalone / EAS builds, configure an EAS project and set `expo.extra.eas.projectId` when you need a fixed project id for push tokens (see [Expo push setup](https://docs.expo.dev/push-notifications/push-notifications-setup/)).
 
+### EAS Build (development client)
+
+This repo uses **pnpm workspaces**. The root [`.npmrc`](.npmrc) sets `node-linker=hoisted` so Expo’s native tooling (`expo-modules-autolinking`, `@expo/prebuild-config`, etc.) resolves consistently. After cloning, run `pnpm install` from the repo root.
+
+If `eas build` fails with **“expo-modules-autolinking … incompatible with @expo/prebuild-config”**:
+
+1. From the **repository root**: `pnpm install` (with the committed `.npmrc`).
+2. Use a current CLI: `npx eas-cli@latest build --profile development --platform ios` (or `npm i -g eas-cli@latest`).
+3. From `apps/mobile`, sanity-check: `pnpm exec expo prebuild --platform ios` (optional; `ios/` is gitignored).
+
 ## Scripts (root)
 
 | Script | Description |
