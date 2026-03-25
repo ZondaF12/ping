@@ -71,6 +71,8 @@ pnpm start
 
 Then press `i` for iOS. Use **Send test notification** to hit your API with a sample payload.
 
+**Physical iPhone:** `http://127.0.0.1:3000` or `http://localhost:3000` points at the **phone**, not your computer. Put your Mac’s **LAN IP** in `EXPO_PUBLIC_API_URL` (same Wi‑Fi as the phone), e.g. `http://192.168.1.42:3000`, or use a tunnel (ngrok, etc.) if the device is not on your LAN.
+
 ### Expo Go, simulator, and push tokens
 
 Expo prints warnings in Metro for good reason:
