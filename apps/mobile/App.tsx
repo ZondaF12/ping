@@ -36,31 +36,54 @@ export default function App() {
   const [apiBase, setApiBase] = useState(getApiBaseUrl());
   const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
+  const [registerLog, setRegisterLog] = useState<string | null>(null);
 
   const webhookUrl =
     secret && apiBase ? `${apiBase}/v1/${encodeURIComponent(secret)}` : '';
 
   const registerWithApi = useCallback(
-    async (s: string): Promise<{ ok: true; base: string } | { ok: false; banner: Banner }> => {
+    async (
+      s: string,
+      onProgress?: (b: Banner) => void,
+    ): Promise<{ ok: true; base: string } | { ok: false; banner: Banner }> => {
       const base = getApiBaseUrl();
       setApiBase(base);
+      onProgress?.({
+        variant: 'info',
+        text: 'Register: getting Expo push token…',
+      });
       const expoPushToken = await registerForExpoPushTokenAsync();
       if (!expoPushToken) {
-        return {
-          ok: false,
-          banner: {
-            variant: 'error',
-            text: 'No Expo push token (allow notifications in Settings, use a dev build or Expo Go, and ensure push is configured). The API was not contacted—webhook calls will return 404 until you register.',
-          },
+        const b: Banner = {
+          variant: 'error',
+          text: 'No Expo push token (allow notifications in Settings, use a dev build or Expo Go, and ensure push is configured). The register request was not sent.',
         };
+        setRegisterLog(
+          `${new Date().toLocaleTimeString()}: register not sent (no push token)`,
+        );
+        return { ok: false, banner: b };
       }
-      const res = await fetch(`${base}/v1/register/${encodeURIComponent(s)}`, {
+      const registerUrl = `${base}/v1/register/${encodeURIComponent(s)}`;
+      onProgress?.({
+        variant: 'info',
+        text: `Register: sending POST to\n${registerUrl}`,
+      });
+      if (__DEV__) {
+        console.log('[ping] register POST', registerUrl);
+      }
+      const res = await fetch(registerUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expoPushToken }),
       });
+      if (__DEV__) {
+        console.log('[ping] register response', res.status, res.statusText);
+      }
       if (!res.ok) {
         const body = await res.text();
+        setRegisterLog(
+          `${new Date().toLocaleTimeString()}: POST register → HTTP ${res.status}`,
+        );
         return {
           ok: false,
           banner: {
@@ -69,6 +92,9 @@ export default function App() {
           },
         };
       }
+      setRegisterLog(
+        `${new Date().toLocaleTimeString()}: POST register → HTTP ${res.status} (saved token ${expoPushToken.slice(0, 24)}…)`,
+      );
       return { ok: true, base };
     },
     [],
@@ -76,12 +102,20 @@ export default function App() {
 
   const registerDevice = useCallback(
     async (s: string) => {
-      const result = await registerWithApi(s);
-      if (!result.ok) {
-        setBanner(result.banner);
-        return;
+      setBusy(true);
+      try {
+        const result = await registerWithApi(s, setBanner);
+        if (!result.ok) {
+          setBanner(result.banner);
+          return;
+        }
+        setBanner({
+          variant: 'success',
+          text: 'Register complete: API responded OK and stored your push token.',
+        });
+      } finally {
+        setBusy(false);
       }
-      setBanner({ variant: 'success', text: 'Registered with API.' });
     },
     [registerWithApi],
   );
@@ -115,7 +149,7 @@ export default function App() {
     setBusy(true);
     setBanner(null);
     try {
-      const reg = await registerWithApi(secret);
+      const reg = await registerWithApi(secret, setBanner);
       if (!reg.ok) {
         setBanner(reg.banner);
         return;
@@ -171,7 +205,7 @@ export default function App() {
       </Text>
       <View style={styles.actions}>
         <Button
-          title="Re-register device"
+          title={busy ? 'Working…' : 'Re-register device'}
           onPress={() => registerDevice(secret)}
           disabled={busy}
         />
@@ -189,6 +223,19 @@ export default function App() {
           ]}
         >
           {banner.text}
+        </Text>
+      ) : null}
+      {registerLog ? (
+        <>
+          <Text style={styles.logLabel}>Last register activity</Text>
+          <Text selectable style={styles.logBody}>
+            {registerLog}
+          </Text>
+        </>
+      ) : null}
+      {__DEV__ ? (
+        <Text style={styles.devHint}>
+          Dev: watch Metro logs for [ping] register POST / response lines.
         </Text>
       ) : null}
       <StatusBar style="auto" />
@@ -242,4 +289,22 @@ const styles = StyleSheet.create({
   bannerError: { color: '#b00020' },
   bannerInfo: { color: '#333' },
   muted: { marginTop: 8, color: '#888' },
+  logLabel: {
+    marginTop: 20,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#555',
+  },
+  logBody: {
+    marginTop: 6,
+    fontSize: 11,
+    fontFamily: 'monospace',
+    color: '#333',
+  },
+  devHint: {
+    marginTop: 12,
+    fontSize: 11,
+    color: '#888',
+    fontStyle: 'italic',
+  },
 });
