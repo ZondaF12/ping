@@ -71,7 +71,9 @@ export class NotificationsController {
     const secretDigest = this.digest.digest(secret);
     const sub = await this.subscribers.findByDigest(secretDigest);
     if (!sub || sub.devices.length === 0) {
-      throw new NotFoundException();
+      throw new NotFoundException(
+        'No devices registered for this webhook secret. Open the Ping app, allow notifications, and tap Re-register device (Mongo must be running on the API).',
+      );
     }
     const tokens = sub.devices.map((d) => d.expoPushToken);
     const payload = parsed.data;

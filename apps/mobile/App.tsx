@@ -29,48 +29,83 @@ async function getOrCreateSecret(): Promise<string> {
   return secret;
 }
 
+type Banner = { text: string; variant: 'info' | 'success' | 'error' };
+
 export default function App() {
   const [secret, setSecret] = useState<string | null>(null);
   const [apiBase, setApiBase] = useState(getApiBaseUrl());
-  const [status, setStatus] = useState<string>('');
+  const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
 
   const webhookUrl =
     secret && apiBase ? `${apiBase}/v1/${encodeURIComponent(secret)}` : '';
 
-  const registerDevice = useCallback(async (s: string) => {
-    const base = getApiBaseUrl();
-    setApiBase(base);
-    const expoPushToken = await registerForExpoPushTokenAsync();
-    if (!expoPushToken) {
-      setStatus('Push permission denied or token unavailable.');
-      return;
-    }
-    const res = await fetch(`${base}/v1/register/${encodeURIComponent(s)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ expoPushToken }),
-    });
-    if (!res.ok) {
-      setStatus(`Register failed: ${res.status}`);
-      return;
-    }
-    setStatus('Registered with API.');
-  }, []);
+  const registerWithApi = useCallback(
+    async (s: string): Promise<{ ok: true; base: string } | { ok: false; banner: Banner }> => {
+      const base = getApiBaseUrl();
+      setApiBase(base);
+      const expoPushToken = await registerForExpoPushTokenAsync();
+      if (!expoPushToken) {
+        return {
+          ok: false,
+          banner: {
+            variant: 'error',
+            text: 'No Expo push token (allow notifications in Settings, use a dev build or Expo Go, and ensure push is configured). The API was not contacted—webhook calls will return 404 until you register.',
+          },
+        };
+      }
+      const res = await fetch(`${base}/v1/register/${encodeURIComponent(s)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expoPushToken }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        return {
+          ok: false,
+          banner: {
+            variant: 'error',
+            text: `Register failed: ${res.status} ${body}`,
+          },
+        };
+      }
+      return { ok: true, base };
+    },
+    [],
+  );
+
+  const registerDevice = useCallback(
+    async (s: string) => {
+      const result = await registerWithApi(s);
+      if (!result.ok) {
+        setBanner(result.banner);
+        return;
+      }
+      setBanner({ variant: 'success', text: 'Registered with API.' });
+    },
+    [registerWithApi],
+  );
 
   useEffect(() => {
     let sub: Notifications.Subscription | undefined;
     (async () => {
-      const s = await getOrCreateSecret();
-      setSecret(s);
-      await registerDevice(s);
+      try {
+        const s = await getOrCreateSecret();
+        setSecret(s);
+        await registerDevice(s);
 
-      const last = await Notifications.getLastNotificationResponseAsync();
-      if (last) openUrlFromNotificationResponse(last);
+        const last = await Notifications.getLastNotificationResponseAsync();
+        if (last) openUrlFromNotificationResponse(last);
 
-      sub = subscribeToNotificationResponses((response) => {
-        openUrlFromNotificationResponse(response);
-      });
+        sub = subscribeToNotificationResponses((response) => {
+          openUrlFromNotificationResponse(response);
+        });
+      } catch (e) {
+        setBanner({
+          variant: 'error',
+          text: `Startup failed: ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
     })();
     return () => sub?.remove();
   }, [registerDevice]);
@@ -78,10 +113,14 @@ export default function App() {
   const sendTest = async () => {
     if (!secret) return;
     setBusy(true);
-    setStatus('');
+    setBanner(null);
     try {
-      const base = getApiBaseUrl();
-      setApiBase(base);
+      const reg = await registerWithApi(secret);
+      if (!reg.ok) {
+        setBanner(reg.banner);
+        return;
+      }
+      const { base } = reg;
       const res = await fetch(`${base}/v1/${encodeURIComponent(secret)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,8 +132,17 @@ export default function App() {
         }),
       });
       const text = await res.text();
-      if (!res.ok) setStatus(`Send failed: ${res.status} ${text}`);
-      else setStatus(`Sent (${res.status}). ${text}`);
+      if (!res.ok) {
+        setBanner({
+          variant: 'error',
+          text: `Send failed: ${res.status} ${text}`,
+        });
+      } else {
+        setBanner({
+          variant: 'success',
+          text: `Sent (${res.status}). ${text}`,
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -131,7 +179,18 @@ export default function App() {
         <Button title="Send test notification" onPress={sendTest} disabled={busy} />
       </View>
       {busy ? <ActivityIndicator style={styles.spinner} /> : null}
-      {status ? <Text style={styles.status}>{status}</Text> : null}
+      {banner ? (
+        <Text
+          style={[
+            styles.banner,
+            banner.variant === 'error' && styles.bannerError,
+            banner.variant === 'success' && styles.bannerSuccess,
+            banner.variant === 'info' && styles.bannerInfo,
+          ]}
+        >
+          {banner.text}
+        </Text>
+      ) : null}
       <StatusBar style="auto" />
     </ScrollView>
   );
@@ -175,6 +234,12 @@ const styles = StyleSheet.create({
   },
   gap: { height: 12 },
   spinner: { marginTop: 16 },
-  status: { marginTop: 16, fontSize: 14, color: '#0a0' },
+  banner: {
+    marginTop: 16,
+    fontSize: 14,
+  },
+  bannerSuccess: { color: '#0a6b2f' },
+  bannerError: { color: '#b00020' },
+  bannerInfo: { color: '#333' },
   muted: { marginTop: 8, color: '#888' },
 });
