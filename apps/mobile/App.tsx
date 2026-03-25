@@ -17,6 +17,7 @@ import {
   registerForExpoPushTokenAsync,
   subscribeToNotificationResponses,
 } from './src/notifications';
+import { PushEnvironmentNote } from './src/pushEnvironmentNote';
 
 const SECRET_KEY = 'webhook_secret_v1';
 
@@ -203,6 +204,7 @@ export default function App() {
         Set EXPO_PUBLIC_API_URL to your API host if not using the default (
         {getApiBaseUrl()}).
       </Text>
+      <PushEnvironmentNote />
       <View style={styles.actions}>
         <Button
           title={busy ? 'Working…' : 'Re-register device'}

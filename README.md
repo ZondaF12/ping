@@ -71,6 +71,15 @@ pnpm start
 
 Then press `i` for iOS. Use **Send test notification** to hit your API with a sample payload.
 
+### Expo Go, simulator, and push tokens
+
+Expo prints warnings in Metro for good reason:
+
+| Environment | What to expect |
+| --- | --- |
+| **Expo Go** | `expo-notifications` is **not fully supported** in Expo Go. On **Android**, **remote (push) notifications were removed from Expo Go in SDK 53**—use a [**development build**](https://docs.expo.dev/develop/development-builds/introduction/) (or a production build) instead. See [expo.fyi/dev-client](https://expo.fyi/dev-client). |
+| **iOS Simulator** | Obtaining a push token **may not work reliably** on recent iOS simulators (Apple / Expo warn about this). **Use a physical iPhone** to confirm register + delivery end-to-end. |
+
 For standalone / EAS builds, configure an EAS project and set `expo.extra.eas.projectId` when you need a fixed project id for push tokens (see [Expo push setup](https://docs.expo.dev/push-notifications/push-notifications-setup/)).
 
 ## Scripts (root)
