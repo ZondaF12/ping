@@ -13,7 +13,7 @@ import { PushEnvironmentNote } from "@/components/push-environment-note";
 import { RegisterLogSection } from "@/components/register-log-section";
 import { StatusBanner } from "@/components/status-banner";
 import { WebhookUrlSection } from "@/components/webhook-url-section";
-import { Colors } from "@/constants/theme";
+import { Colors, Fonts } from "@/constants/theme";
 import { usePingRegistration } from "@/hooks/usePingRegistration";
 import { useWebhookSecret } from "@/hooks/useWebhookSecret";
 
@@ -21,14 +21,8 @@ export default function HomeScreen() {
     const scheme = useColorScheme() === "dark" ? "dark" : "light";
     const c = Colors[scheme];
     const { secret, loadError } = useWebhookSecret();
-    const {
-        apiBase,
-        banner,
-        busy,
-        registerLog,
-        registerDevice,
-        sendTest,
-    } = usePingRegistration();
+    const { apiBase, banner, busy, registerLog, registerDevice, sendTest } =
+        usePingRegistration();
 
     const webhookUrl =
         secret && apiBase ? `${apiBase}/v1/${encodeURIComponent(secret)}` : "";
@@ -49,9 +43,7 @@ export default function HomeScreen() {
                         loadError && styles.loadErrorText,
                     ]}
                 >
-                    {loadError
-                        ? `Startup failed: ${loadError}`
-                        : "Preparing…"}
+                    {loadError ? `Startup failed: ${loadError}` : "Preparing…"}
                 </Text>
                 <StatusBar style="auto" />
             </View>
@@ -108,8 +100,8 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     title: {
+        fontFamily: Fonts.monoSemiBold,
         fontSize: 28,
-        fontWeight: "700",
         marginBottom: 20,
     },
     actions: {

@@ -1,4 +1,13 @@
 /**
+ * JetBrains Mono — embedded via expo-font config plugin (iOS/Android dev & production builds).
+ * @see https://docs.expo.dev/develop/user-interface/fonts/
+ */
+export const Fonts = {
+    mono: "JetBrainsMono-Regular",
+    monoSemiBold: "JetBrainsMono-SemiBold",
+} as const;
+
+/**
  * Subset of light/dark palette (muscle-memory-rn style) for Ping’s single screen.
  */
 export const Colors = {

@@ -1,5 +1,5 @@
 import { StyleSheet, Text } from "react-native";
-import { Colors } from "@/constants/theme";
+import { Colors, Fonts } from "@/constants/theme";
 import type { ColorSchemeName } from "@/constants/theme";
 
 type Props = {
@@ -30,6 +30,6 @@ const styles = StyleSheet.create({
     logBody: {
         marginTop: 6,
         fontSize: 11,
-        fontFamily: "monospace",
+        fontFamily: Fonts.mono,
     },
 });

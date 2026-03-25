@@ -1,54 +1,65 @@
 {
-    "expo": {
-        "name": "Ping",
-        "slug": "ping",
-        "version": "1.0.0",
-        "orientation": "portrait",
-        "icon": "./assets/icon.png",
-        "userInterfaceStyle": "automatic",
-        "scheme": "ping",
-        "splash": {
-            "image": "./assets/splash-icon.png",
-            "resizeMode": "contain",
-            "backgroundColor": "#ffffff"
-        },
-        "ios": {
-            "supportsTablet": true,
-            "bundleIdentifier": "com.ruaridhbell.ping",
-            "infoPlist": {
-                "UIBackgroundModes": ["remote-notification"],
-                "ITSAppUsesNonExemptEncryption": false
-            }
-        },
-        "android": {
-            "adaptiveIcon": {
-                "backgroundColor": "#E6F4FE",
-                "foregroundImage": "./assets/android-icon-foreground.png",
-                "backgroundImage": "./assets/android-icon-background.png",
-                "monochromeImage": "./assets/android-icon-monochrome.png"
-            },
-            "predictiveBackGestureEnabled": false
-        },
-        "web": {
-            "favicon": "./assets/favicon.png"
-        },
-        "plugins": [
-            [
-                "expo-notifications",
-                {
-                    "sounds": []
-                }
-            ],
-            "expo-router"
+  "expo": {
+    "name": "Ping",
+    "slug": "ping",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "ping",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ruaridhbell.ping",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
         ],
-        "extra": {
-            "eas": {
-                "projectId": "fe22d29d-3637-4995-b3d4-3dac67c9bcfb"
-            }
-        },
-        "experiments": {
-            "typedRoutes": true,
-            "tsconfigPaths": true
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "sounds": []
         }
+      ],
+      "expo-router",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/JetBrainsMono-Regular.ttf",
+            "./assets/fonts/JetBrainsMono-SemiBold.ttf"
+          ]
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fe22d29d-3637-4995-b3d4-3dac67c9bcfb"
+      }
+    },
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
     }
+  }
 }

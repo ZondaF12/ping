@@ -1,6 +1,6 @@
 import { StyleSheet, Text } from "react-native";
 import { getApiBaseUrl } from "@/lib/config";
-import { Colors } from "@/constants/theme";
+import { Colors, Fonts } from "@/constants/theme";
 import type { ColorSchemeName } from "@/constants/theme";
 
 type Props = {
@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     mono: {
-        fontFamily: "monospace",
+        fontFamily: Fonts.mono,
         fontSize: 12,
     },
     hint: {
