@@ -62,7 +62,7 @@ Deploy the **Nest service from the monorepo root** (not `apps/api` alone), so `@
    ```
 
 7. **Networking:** generate a **public domain** for the service (HTTPS). Smoke-test `GET https://YOUR_DOMAIN/health` → `{"ok":true}`.
-8. **Phone / `.env`:** set `EXPO_PUBLIC_API_URL=https://YOUR_DOMAIN` (no trailing slash), restart Metro/reload the dev build, then **Re-register device** so tokens are stored against the hosted API.
+8. **Phone / `.env`:** set `EXPO_PUBLIC_API_URL=https://YOUR_DOMAIN` (no trailing slash, **no `:3000`** on Railway—HTTPS is on the default port; `:3000` is only for local dev like `http://192.168.x.x:3000`). Restart Metro/reload the dev build, then **Re-register device** so tokens are stored against the hosted API.
 
 Outbound HTTPS to Expo’s push servers (`exp.host`) must be allowed (default on Railway).
 
