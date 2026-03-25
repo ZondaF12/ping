@@ -5,7 +5,9 @@ import { SubscribersService } from './subscribers.service';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Subscriber.name, schema: SubscriberSchema }]),
+    MongooseModule.forFeature([
+      { name: Subscriber.name, schema: SubscriberSchema },
+    ]),
   ],
   providers: [SubscribersService],
   exports: [SubscribersService],

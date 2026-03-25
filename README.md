@@ -17,11 +17,11 @@ Monorepo for a minimal **webhook → push notification** flow: your automation c
 
 Copy `apps/api/.env.example` to `apps/api/.env` and adjust:
 
-| Variable | Purpose |
-| --- | --- |
-| `MONGODB_URI` | Mongo connection string |
-| `SECRET_SALT` | Server-only salt for HMAC digest of URL secrets (use a long random value in production) |
-| `PORT` | HTTP port (default `3000`) |
+| Variable            | Purpose                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MONGODB_URI`       | Mongo connection string                                                                                                                    |
+| `SECRET_SALT`       | Server-only salt for HMAC digest of URL secrets (use a long random value in production)                                                    |
+| `PORT`              | HTTP port (default `3000`)                                                                                                                 |
 | `EXPO_ACCESS_TOKEN` | Optional; required if you enable [Expo push security](https://docs.expo.dev/push-notifications/sending-notifications/#additional-security) |
 
 The API does not persist notification bodies in the database; avoid logging full webhook payloads in production.
@@ -45,21 +45,21 @@ Deploy the **Nest service from the monorepo root** (not `apps/api` alone), so `@
 2. **Root directory:** leave as the **repository root** (`/`). Do **not** point the service only at `apps/api`.
 3. Add **MongoDB** (Railway’s template) **or** use [MongoDB Atlas](https://www.mongodb.com/atlas). You need a single connection string the API can reach.
 4. On the **API** service → **Variables**, set:
-   - **`MONGODB_URI`** — e.g. paste the Mongo URL from Railway’s Mongo service (`MONGO_URL` / `DATABASE_PRIVATE_URL`, etc.), or your Atlas SRV string. Our code reads `MONGODB_URI` (see `app.module.ts`).
-   - **`SECRET_SALT`** — long random secret; **do not change** after users have registered or their webhook URLs will stop matching stored digests.
-   - **`EXPO_ACCESS_TOKEN`** — only if you enabled Expo’s [push access token](https://docs.expo.dev/push-notifications/sending-notifications/#additional-security).
-   - **`PORT`** — Railway sets this automatically; Nest uses `process.env.PORT` and does not need you to set it unless you override.
+    - **`MONGODB_URI`** — e.g. paste the Mongo URL from Railway’s Mongo service (`MONGO_URL` / `DATABASE_PRIVATE_URL`, etc.), or your Atlas SRV string. Our code reads `MONGODB_URI` (see `app.module.ts`).
+    - **`SECRET_SALT`** — long random secret; **do not change** after users have registered or their webhook URLs will stop matching stored digests.
+    - **`EXPO_ACCESS_TOKEN`** — only if you enabled Expo’s [push access token](https://docs.expo.dev/push-notifications/sending-notifications/#additional-security).
+    - **`PORT`** — Railway sets this automatically; Nest uses `process.env.PORT` and does not need you to set it unless you override.
 5. **Build command** (service **Settings → Build**), for example:
 
-   ```bash
-   corepack enable && corepack prepare pnpm@10.33.0 --activate && pnpm install && pnpm --filter @ping/shared build && pnpm --filter @ping/api build
-   ```
+    ```bash
+    corepack enable && corepack prepare pnpm@10.33.0 --activate && pnpm install && pnpm --filter @ping/shared build && pnpm --filter @ping/api build
+    ```
 
 6. **Start command:** Railpack looks for a root **`start`** script in `package.json`. This repo defines `"start": "pnpm --filter @ping/api start:prod"`, so you usually **do not** need a custom start command. If your platform still asks for one, use:
 
-   ```bash
-   pnpm --filter @ping/api start:prod
-   ```
+    ```bash
+    pnpm --filter @ping/api start:prod
+    ```
 
 7. **Networking:** generate a **public domain** for the service (HTTPS). Smoke-test `GET https://YOUR_DOMAIN/health` → `{"ok":true}`.
 8. **Phone / `.env`:** set `EXPO_PUBLIC_API_URL=https://YOUR_DOMAIN` (no trailing slash, **no `:3000`** on Railway—HTTPS is on the default port; `:3000` is only for local dev like `http://192.168.x.x:3000`). Restart Metro/reload the dev build, then **Re-register device** so tokens are stored against the hosted API.
@@ -106,10 +106,10 @@ Then press `i` for iOS. Use **Send test notification** to hit your API with a sa
 
 Expo prints warnings in Metro for good reason:
 
-| Environment | What to expect |
-| --- | --- |
-| **Expo Go** | `expo-notifications` is **not fully supported** in Expo Go. On **Android**, **remote (push) notifications were removed from Expo Go in SDK 53**—use a [**development build**](https://docs.expo.dev/develop/development-builds/introduction/) (or a production build) instead. See [expo.fyi/dev-client](https://expo.fyi/dev-client). |
-| **iOS Simulator** | Obtaining a push token **may not work reliably** on recent iOS simulators (Apple / Expo warn about this). **Use a physical iPhone** to confirm register + delivery end-to-end. |
+| Environment       | What to expect                                                                                                                                                                                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Expo Go**       | `expo-notifications` is **not fully supported** in Expo Go. On **Android**, **remote (push) notifications were removed from Expo Go in SDK 53**—use a [**development build**](https://docs.expo.dev/develop/development-builds/introduction/) (or a production build) instead. See [expo.fyi/dev-client](https://expo.fyi/dev-client). |
+| **iOS Simulator** | Obtaining a push token **may not work reliably** on recent iOS simulators (Apple / Expo warn about this). **Use a physical iPhone** to confirm register + delivery end-to-end.                                                                                                                                                         |
 
 For standalone / EAS builds, configure an EAS project and set `expo.extra.eas.projectId` when you need a fixed project id for push tokens (see [Expo push setup](https://docs.expo.dev/push-notifications/push-notifications-setup/)).
 
@@ -125,8 +125,8 @@ If `eas build` fails with **“expo-modules-autolinking … incompatible with @e
 
 ## Scripts (root)
 
-| Script | Description |
-| --- | --- |
-| `pnpm api` | Run API in watch mode |
-| `pnpm mobile` | Start Expo dev server |
-| `pnpm build` | Build shared + API; typecheck mobile |
+| Script        | Description                          |
+| ------------- | ------------------------------------ |
+| `pnpm api`    | Run API in watch mode                |
+| `pnpm mobile` | Start Expo dev server                |
+| `pnpm build`  | Build shared + API; typecheck mobile |

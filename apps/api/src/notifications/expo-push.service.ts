@@ -46,7 +46,9 @@ export class ExpoPushService {
           }
         });
       } catch (e) {
-        this.log.error(`Expo send failed: ${e instanceof Error ? e.message : e}`);
+        this.log.error(
+          `Expo send failed: ${e instanceof Error ? e.message : e}`,
+        );
         throw e;
       }
     }

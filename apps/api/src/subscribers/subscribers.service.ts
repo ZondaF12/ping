@@ -22,7 +22,9 @@ export class SubscribersService {
         devices: [{ expoPushToken, lastSeenAt: now }],
       });
     }
-    const idx = existing.devices.findIndex((d) => d.expoPushToken === expoPushToken);
+    const idx = existing.devices.findIndex(
+      (d) => d.expoPushToken === expoPushToken,
+    );
     if (idx >= 0) {
       existing.devices[idx].lastSeenAt = now;
     } else {
@@ -36,7 +38,10 @@ export class SubscribersService {
     return this.subscriberModel.findOne({ secretDigest }).exec();
   }
 
-  async removeDeviceToken(secretDigest: string, expoPushToken: string): Promise<void> {
+  async removeDeviceToken(
+    secretDigest: string,
+    expoPushToken: string,
+  ): Promise<void> {
     await this.subscriberModel.updateOne(
       { secretDigest },
       { $pull: { devices: { expoPushToken } } },

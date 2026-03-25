@@ -11,10 +11,7 @@ import {
 } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
-import {
-  notifyPayloadSchema,
-  registerBodySchema,
-} from '@ping/shared';
+import { notifyPayloadSchema, registerBodySchema } from '@ping/shared';
 import { SecretDigestService } from '../crypto/secret-digest.service';
 import { SubscribersService } from '../subscribers/subscribers.service';
 import { ExpoPushService } from './expo-push.service';

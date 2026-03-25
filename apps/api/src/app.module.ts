@@ -13,7 +13,10 @@ import { CryptoModule } from './crypto/crypto.module';
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        uri: config.get<string>('MONGODB_URI', 'mongodb://127.0.0.1:27017/ping'),
+        uri: config.get<string>(
+          'MONGODB_URI',
+          'mongodb://127.0.0.1:27017/ping',
+        ),
       }),
     }),
     ThrottlerModule.forRoot([
