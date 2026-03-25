@@ -1,0 +1,13 @@
+{
+  "name": "ping",
+  "private": true,
+  "scripts": {
+    "api": "pnpm --filter @ping/api start:dev",
+    "mobile": "pnpm --filter @ping/mobile start",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
