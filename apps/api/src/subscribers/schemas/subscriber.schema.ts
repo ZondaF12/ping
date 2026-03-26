@@ -6,18 +6,42 @@ export type SubscriberDocument = HydratedDocument<Subscriber>;
 @Schema({ collection: 'subscribers', timestamps: true })
 export class Subscriber {
   @Prop({ required: true, unique: true, index: true })
-  secretDigest!: string;
+  keyDigest!: string;
+
+  @Prop({ required: true, index: true })
+  userKeyDigest!: string;
+
+  @Prop({ required: true, index: true })
+  userRecordName!: string;
+
+  @Prop({ required: true, index: true })
+  cloudKitTokenDigest!: string;
 
   @Prop({
     type: [
       {
-        expoPushToken: { type: String, required: true },
+        pushToken: { type: String, required: true },
+        recordName: { type: String, required: true },
+        installationId: { type: String, required: false },
+        platform: { type: String, required: false },
+        isEnabled: { type: Boolean, required: true, default: true },
+        createdAt: { type: Date, required: true },
         lastSeenAt: { type: Date, required: true },
+        lastUsedAt: { type: Date, required: false, default: null },
       },
     ],
     default: [],
   })
-  devices!: { expoPushToken: string; lastSeenAt: Date }[];
+  devices!: {
+    pushToken: string;
+    recordName: string;
+    installationId?: string;
+    platform?: string;
+    isEnabled: boolean;
+    createdAt: Date;
+    lastSeenAt: Date;
+    lastUsedAt: Date | null;
+  }[];
 }
 
 export const SubscriberSchema = SchemaFactory.createForClass(Subscriber);

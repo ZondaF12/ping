@@ -10,41 +10,107 @@ export class SubscribersService {
     private readonly subscriberModel: Model<SubscriberDocument>,
   ) {}
 
-  async upsertDevice(
-    secretDigest: string,
-    expoPushToken: string,
-  ): Promise<SubscriberDocument> {
+  async upsertEndpoint(input: {
+    keyDigest: string;
+    userKeyDigest: string;
+    userRecordName: string;
+    cloudKitTokenDigest: string;
+    pushToken: string;
+    recordName: string;
+    installationId?: string;
+    platform?: string;
+  }): Promise<SubscriberDocument> {
     const now = new Date();
-    const existing = await this.subscriberModel.findOne({ secretDigest });
+    const existing = await this.subscriberModel.findOne({
+      keyDigest: input.keyDigest,
+    });
     if (!existing) {
       return this.subscriberModel.create({
-        secretDigest,
-        devices: [{ expoPushToken, lastSeenAt: now }],
+        keyDigest: input.keyDigest,
+        userKeyDigest: input.userKeyDigest,
+        userRecordName: input.userRecordName,
+        cloudKitTokenDigest: input.cloudKitTokenDigest,
+        devices: [
+          {
+            pushToken: input.pushToken,
+            recordName: input.recordName,
+            installationId: input.installationId,
+            platform: input.platform,
+            isEnabled: true,
+            createdAt: now,
+            lastSeenAt: now,
+            lastUsedAt: null,
+          },
+        ],
       });
     }
+    existing.userKeyDigest = input.userKeyDigest;
+    existing.userRecordName = input.userRecordName;
+    existing.cloudKitTokenDigest = input.cloudKitTokenDigest;
     const idx = existing.devices.findIndex(
-      (d) => d.expoPushToken === expoPushToken,
+      (d) =>
+        d.recordName === input.recordName || d.pushToken === input.pushToken,
     );
     if (idx >= 0) {
+      existing.devices[idx].pushToken = input.pushToken;
+      existing.devices[idx].recordName = input.recordName;
+      existing.devices[idx].installationId = input.installationId;
+      existing.devices[idx].platform = input.platform;
+      existing.devices[idx].isEnabled = true;
       existing.devices[idx].lastSeenAt = now;
     } else {
-      existing.devices.push({ expoPushToken, lastSeenAt: now });
+      existing.devices.push({
+        pushToken: input.pushToken,
+        recordName: input.recordName,
+        installationId: input.installationId,
+        platform: input.platform,
+        isEnabled: true,
+        createdAt: now,
+        lastSeenAt: now,
+        lastUsedAt: null,
+      });
     }
     await existing.save();
     return existing;
   }
 
-  async findByDigest(secretDigest: string): Promise<SubscriberDocument | null> {
-    return this.subscriberModel.findOne({ secretDigest }).exec();
+  async findByKeyDigest(keyDigest: string): Promise<SubscriberDocument | null> {
+    return this.subscriberModel.findOne({ keyDigest }).exec();
   }
 
-  async removeDeviceToken(
-    secretDigest: string,
-    expoPushToken: string,
+  async findByUserKeyDigest(
+    userKeyDigest: string,
+  ): Promise<SubscriberDocument | null> {
+    return this.subscriberModel.findOne({ userKeyDigest }).exec();
+  }
+
+  async findByCloudKitTokenDigest(
+    cloudKitTokenDigest: string,
+  ): Promise<SubscriberDocument | null> {
+    return this.subscriberModel.findOne({ cloudKitTokenDigest }).exec();
+  }
+
+  async markDevicesUsed(
+    keyDigest: string,
+    pushTokens: string[],
   ): Promise<void> {
+    const now = new Date();
     await this.subscriberModel.updateOne(
-      { secretDigest },
-      { $pull: { devices: { expoPushToken } } },
+      { keyDigest },
+      {
+        $set: {
+          'devices.$[d].lastUsedAt': now,
+          'devices.$[d].lastSeenAt': now,
+        },
+      },
+      { arrayFilters: [{ 'd.pushToken': { $in: pushTokens } }] },
+    );
+  }
+
+  async removeDeviceToken(keyDigest: string, pushToken: string): Promise<void> {
+    await this.subscriberModel.updateOne(
+      { keyDigest },
+      { $pull: { devices: { pushToken } } },
     );
   }
 }
