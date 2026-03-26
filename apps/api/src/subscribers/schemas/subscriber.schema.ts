@@ -15,7 +15,7 @@ export class Subscriber {
   userRecordName!: string;
 
   @Prop({ required: true, index: true })
-  cloudKitTokenDigest!: string;
+  cloudKitUserDigest!: string;
 
   @Prop({
     type: [

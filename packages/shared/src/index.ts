@@ -15,18 +15,20 @@ export const registerBodySchema = z.object({
 
 export type RegisterBody = z.infer<typeof registerBodySchema>;
 
-export const brrRegisterEndpointSchema = z.object({
+export const pingRegisterEndpointSchema = z.object({
     push_token: z.string().min(1).max(512),
     user_key_digest: z.string().min(8).max(256),
     key_digest: z.string().min(8).max(256),
     record_name: z.string().min(1).max(256),
 });
 
-export type BrrRegisterEndpointBody = z.infer<typeof brrRegisterEndpointSchema>;
+export type pingRegisterEndpointBody = z.infer<
+    typeof pingRegisterEndpointSchema
+>;
 
-export const brrNotifyPayloadSchema = z.union([
+export const pingNotifyPayloadSchema = z.union([
     notifyPayloadSchema,
     z.string().min(1).max(10_000),
 ]);
 
-export type BrrNotifyPayload = z.infer<typeof brrNotifyPayloadSchema>;
+export type pingNotifyPayload = z.infer<typeof pingNotifyPayloadSchema>;

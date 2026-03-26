@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Headers,
   HttpCode,
@@ -13,13 +14,14 @@ import {
 } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import {
-  brrNotifyPayloadSchema,
-  brrRegisterEndpointSchema,
+  pingNotifyPayloadSchema,
+  pingRegisterEndpointSchema,
   notifyPayloadSchema,
 } from '@ping/shared';
 import { SecretDigestService } from '../crypto/secret-digest.service';
 import { SubscribersService } from '../subscribers/subscribers.service';
 import { ApnsPushService } from './apns-push.service';
+import { CloudKitAuthService } from '../cloudkit/cloudkit-auth.service';
 
 @Controller('v1')
 export class NotificationsController {
@@ -27,23 +29,24 @@ export class NotificationsController {
     private readonly digest: SecretDigestService,
     private readonly subscribers: SubscribersService,
     private readonly apnsPush: ApnsPushService,
+    private readonly cloudKitAuth: CloudKitAuthService,
   ) {}
 
-  private requireCloudKitToken(token?: string): {
-    token: string;
-    tokenDigest: string;
-  } {
-    const t = token?.trim();
-    if (!t) {
-      throw new UnauthorizedException(
-        'Missing X-CloudKit-Web-Auth-Token header',
-      );
+  private async requireCloudKitIdentity(token?: string): Promise<{
+    userRecordName: string;
+    identityDigest: string;
+  }> {
+    try {
+      return await this.cloudKitAuth.verifyWebAuthToken(token);
+    } catch (error) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      throw new UnauthorizedException('CloudKit token verification failed');
     }
-    // Lightweight validation; upstream verifier can be swapped in later.
-    if (t.length < 32) {
-      throw new UnauthorizedException('Invalid X-CloudKit-Web-Auth-Token');
-    }
-    return { token: t, tokenDigest: this.digest.digest(`ckwt:${t}`) };
   }
 
   @Post('me/endpoints/register')
@@ -53,9 +56,9 @@ export class NotificationsController {
     @Headers('x-cloudkit-web-auth-token') cloudKitToken: string | undefined,
     @Body() body: unknown,
   ): Promise<void> {
-    const auth = this.requireCloudKitToken(cloudKitToken);
+    const auth = await this.requireCloudKitIdentity(cloudKitToken);
 
-    const parsed = brrRegisterEndpointSchema.safeParse(body);
+    const parsed = pingRegisterEndpointSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException('Invalid body');
     }
@@ -63,8 +66,8 @@ export class NotificationsController {
     await this.subscribers.upsertEndpoint({
       keyDigest: parsed.data.key_digest,
       userKeyDigest: parsed.data.user_key_digest,
-      userRecordName: parsed.data.record_name,
-      cloudKitTokenDigest: auth.tokenDigest,
+      userRecordName: auth.userRecordName,
+      cloudKitUserDigest: auth.identityDigest,
       pushToken: parsed.data.push_token,
       recordName: parsed.data.record_name,
     });
@@ -84,9 +87,9 @@ export class NotificationsController {
       record_name: string;
     }>;
   }> {
-    const auth = this.requireCloudKitToken(cloudKitToken);
-    const sub = await this.subscribers.findByCloudKitTokenDigest(
-      auth.tokenDigest,
+    const auth = await this.requireCloudKitIdentity(cloudKitToken);
+    const sub = await this.subscribers.findByCloudKitUserDigest(
+      auth.identityDigest,
     );
     if (!sub) {
       throw new NotFoundException('No endpoint found for key_digest');
@@ -131,7 +134,7 @@ export class NotificationsController {
     const tokens = sub.devices
       .filter((d) => d.isEnabled)
       .map((d) => d.pushToken);
-    const parsed = brrNotifyPayloadSchema.safeParse(body);
+    const parsed = pingNotifyPayloadSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException('Invalid body');
     }

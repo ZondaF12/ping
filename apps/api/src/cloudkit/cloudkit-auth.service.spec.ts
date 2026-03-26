@@ -1,0 +1,60 @@
+import { ConfigService } from '@nestjs/config';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { CloudKitAuthService } from './cloudkit-auth.service';
+
+describe('CloudKitAuthService', () => {
+  const config = new ConfigService({
+    CLOUDKIT_CONTAINER_ID: 'iCloud.com.example.ping',
+    CLOUDKIT_ENV: 'development',
+    CLOUDKIT_API_TOKEN: 'test-api-token',
+  });
+
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  it('returns verified identity digest from users/caller response', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        users: [{ userRecordName: 'user_abc' }],
+      }),
+    } as Response);
+
+    const service = new CloudKitAuthService(config);
+    const result = await service.verifyWebAuthToken('token-123');
+
+    expect(result.userRecordName).toBe('user_abc');
+    expect(result.identityDigest).toBeTruthy();
+  });
+
+  it('throws unauthorized when Apple returns 401', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    } as Response);
+
+    const service = new CloudKitAuthService(config);
+    await expect(service.verifyWebAuthToken('bad-token')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('throws forbidden when Apple returns 403', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({}),
+    } as Response);
+
+    const service = new CloudKitAuthService(config);
+    await expect(service.verifyWebAuthToken('bad-token')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});

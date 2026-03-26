@@ -14,7 +14,7 @@ export class SubscribersService {
     keyDigest: string;
     userKeyDigest: string;
     userRecordName: string;
-    cloudKitTokenDigest: string;
+    cloudKitUserDigest: string;
     pushToken: string;
     recordName: string;
     installationId?: string;
@@ -29,7 +29,7 @@ export class SubscribersService {
         keyDigest: input.keyDigest,
         userKeyDigest: input.userKeyDigest,
         userRecordName: input.userRecordName,
-        cloudKitTokenDigest: input.cloudKitTokenDigest,
+        cloudKitUserDigest: input.cloudKitUserDigest,
         devices: [
           {
             pushToken: input.pushToken,
@@ -46,7 +46,7 @@ export class SubscribersService {
     }
     existing.userKeyDigest = input.userKeyDigest;
     existing.userRecordName = input.userRecordName;
-    existing.cloudKitTokenDigest = input.cloudKitTokenDigest;
+    existing.cloudKitUserDigest = input.cloudKitUserDigest;
     const idx = existing.devices.findIndex(
       (d) =>
         d.recordName === input.recordName || d.pushToken === input.pushToken,
@@ -84,10 +84,10 @@ export class SubscribersService {
     return this.subscriberModel.findOne({ userKeyDigest }).exec();
   }
 
-  async findByCloudKitTokenDigest(
-    cloudKitTokenDigest: string,
+  async findByCloudKitUserDigest(
+    cloudKitUserDigest: string,
   ): Promise<SubscriberDocument | null> {
-    return this.subscriberModel.findOne({ cloudKitTokenDigest }).exec();
+    return this.subscriberModel.findOne({ cloudKitUserDigest }).exec();
   }
 
   async markDevicesUsed(
