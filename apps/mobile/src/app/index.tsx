@@ -132,7 +132,7 @@ export default function HomeScreen() {
                         </Text>
                     </Text>
                     <Text style={styles.heroSubtitle}>
-                        Make this device go brrr by sending a notification with
+                        Make this device go ping by sending a notification with
                         the API call below.
                     </Text>
 

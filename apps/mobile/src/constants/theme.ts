@@ -8,7 +8,7 @@ export const Fonts = {
 } as const;
 
 /**
- * Dark product UI (brrr-style reference): near-black canvas, purple accent, lime CTA.
+ * Dark product UI (ping-style reference): near-black canvas, purple accent, lime CTA.
  */
 export const Product = {
     canvas: "#000000",
