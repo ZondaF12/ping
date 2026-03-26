@@ -20,6 +20,7 @@ export const pingRegisterEndpointSchema = z.object({
     user_key_digest: z.string().min(8).max(256),
     key_digest: z.string().min(8).max(256),
     record_name: z.string().min(1).max(256),
+    user_record_name: z.string().min(8).max(256),
 });
 
 export type pingRegisterEndpointBody = z.infer<

@@ -29,7 +29,22 @@ describe('CloudKitAuthService', () => {
     const result = await service.verifyWebAuthToken('token-123');
 
     expect(result.userRecordName).toBe('user_abc');
-    expect(result.identityDigest).toBeTruthy();
+    expect(service.digestIdentity(result.userRecordName!)).toBeTruthy();
+  });
+
+  it('returns null identity when users/caller omits user fields', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        users: [{}],
+      }),
+    } as Response);
+
+    const service = new CloudKitAuthService(config);
+    const result = await service.verifyWebAuthToken('token-123');
+
+    expect(result.userRecordName).toBeNull();
   });
 
   it('throws unauthorized when Apple returns 401', async () => {

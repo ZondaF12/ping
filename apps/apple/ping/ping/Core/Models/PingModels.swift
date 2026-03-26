@@ -12,6 +12,7 @@ struct RegisterRequestBody: Encodable {
     let user_key_digest: String
     let key_digest: String
     let record_name: String
+    let user_record_name: String
 }
 
 struct EndpointResponse: Decodable {

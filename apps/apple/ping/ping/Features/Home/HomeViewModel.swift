@@ -76,7 +76,8 @@ final class HomeViewModel: ObservableObject {
             push_token: token,
             user_key_digest: Self.digest(bundle.secret),
             key_digest: Self.digest(bundle.secret),
-            record_name: bundle.deviceRecordName
+            record_name: bundle.deviceRecordName,
+            user_record_name: bundle.userRecordName
         )
 
         try await api.postRegister(

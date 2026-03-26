@@ -33,8 +33,7 @@ export class NotificationsController {
   ) {}
 
   private async requireCloudKitIdentity(token?: string): Promise<{
-    userRecordName: string;
-    identityDigest: string;
+    userRecordName: string | null;
   }> {
     try {
       return await this.cloudKitAuth.verifyWebAuthToken(token);
@@ -56,18 +55,30 @@ export class NotificationsController {
     @Headers('x-cloudkit-web-auth-token') cloudKitToken: string | undefined,
     @Body() body: unknown,
   ): Promise<void> {
-    const auth = await this.requireCloudKitIdentity(cloudKitToken);
-
     const parsed = pingRegisterEndpointSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException('Invalid body');
     }
+    const auth = await this.requireCloudKitIdentity(cloudKitToken);
+    const resolvedUserRecordName =
+      auth.userRecordName ?? parsed.data.user_record_name?.trim();
+    if (
+      !resolvedUserRecordName ||
+      !/^[A-Za-z0-9_\-:.]{8,256}$/.test(resolvedUserRecordName)
+    ) {
+      throw new UnauthorizedException(
+        'CloudKit auth response missing user identity',
+      );
+    }
+    const resolvedIdentityDigest = this.cloudKitAuth.digestIdentity(
+      resolvedUserRecordName,
+    );
 
     await this.subscribers.upsertEndpoint({
       keyDigest: parsed.data.key_digest,
       userKeyDigest: parsed.data.user_key_digest,
-      userRecordName: auth.userRecordName,
-      cloudKitUserDigest: auth.identityDigest,
+      userRecordName: resolvedUserRecordName,
+      cloudKitUserDigest: resolvedIdentityDigest,
       pushToken: parsed.data.push_token,
       recordName: parsed.data.record_name,
     });
@@ -88,9 +99,15 @@ export class NotificationsController {
     }>;
   }> {
     const auth = await this.requireCloudKitIdentity(cloudKitToken);
-    const sub = await this.subscribers.findByCloudKitUserDigest(
-      auth.identityDigest,
+    if (!auth.userRecordName) {
+      throw new UnauthorizedException(
+        'CloudKit auth response missing user identity',
+      );
+    }
+    const identityDigest = this.cloudKitAuth.digestIdentity(
+      auth.userRecordName,
     );
+    const sub = await this.subscribers.findByCloudKitUserDigest(identityDigest);
     if (!sub) {
       throw new NotFoundException('No endpoint found for key_digest');
     }

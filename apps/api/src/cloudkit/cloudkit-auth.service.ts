@@ -34,12 +34,13 @@ export class CloudKitAuthService {
   }
 
   async verifyWebAuthToken(rawToken?: string): Promise<{
-    userRecordName: string;
-    identityDigest: string;
+    userRecordName: string | null;
   }> {
     const token = rawToken?.trim();
     if (!token) {
-      throw new UnauthorizedException('Missing X-CloudKit-Web-Auth-Token header');
+      throw new UnauthorizedException(
+        'Missing X-CloudKit-Web-Auth-Token header',
+      );
     }
 
     const url = new URL(
@@ -65,15 +66,15 @@ export class CloudKitAuthService {
 
     const payload = (await response.json()) as CloudKitCallerResponse;
     const userRecordName =
-      payload.users?.[0]?.userRecordName ?? payload.users?.[0]?.recordName;
-    if (!userRecordName) {
-      throw new UnauthorizedException('CloudKit auth response missing user identity');
-    }
+      payload.users?.[0]?.userRecordName ??
+      payload.users?.[0]?.recordName ??
+      null;
+    return { userRecordName };
+  }
 
-    const identityDigest = createHash('sha256')
+  digestIdentity(userRecordName: string): string {
+    return createHash('sha256')
       .update(`ckuser:${userRecordName}`, 'utf8')
       .digest('base64url');
-
-    return { userRecordName, identityDigest };
   }
 }
