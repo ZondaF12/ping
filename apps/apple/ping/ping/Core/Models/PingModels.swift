@@ -33,7 +33,7 @@ struct EndpointResponse: Decodable {
     let devices: [Device]
 }
 
-struct SecretBundle {
+struct SecretBundle: Codable, Equatable {
     let secret: String
     let userRecordName: String
     let deviceRecordName: String

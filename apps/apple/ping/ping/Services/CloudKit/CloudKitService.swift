@@ -47,7 +47,7 @@ struct CloudKitService: CloudKitServiceProtocol {
         deviceRecord["last_seen_timestamp"] = Date() as CKRecordValue
         _ = try await saveRecord(deviceRecord)
 
-        let cloudKitWebAuthToken = "ckwt_\(userRecordName)"
+        let cloudKitWebAuthToken = try await fetchWebAuthToken()
         return SecretBundle(
             secret: secret,
             userRecordName: userRecordName,
@@ -113,6 +113,38 @@ struct CloudKitService: CloudKitServiceProtocol {
                 }
                 continuation.resume(returning: saved)
             }
+        }
+    }
+
+    private func fetchWebAuthToken() async throws -> String {
+        let apiToken = AppConfig.cloudKitApiToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiToken.isEmpty else {
+            throw NSError(
+                domain: "ping.ck",
+                code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "Missing PING_CLOUDKIT_API_TOKEN"]
+            )
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let operation = CKFetchWebAuthTokenOperation(apiToken: apiToken)
+            operation.fetchWebAuthTokenResultBlock = { result in
+                switch result {
+                case .success(let token):
+                    guard !token.isEmpty else {
+                        continuation.resume(throwing: NSError(
+                            domain: "ping.ck",
+                            code: 6,
+                            userInfo: [NSLocalizedDescriptionKey: "CloudKit web auth token missing"]
+                        ))
+                        return
+                    }
+                    continuation.resume(returning: token)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            self.database.add(operation)
         }
     }
 

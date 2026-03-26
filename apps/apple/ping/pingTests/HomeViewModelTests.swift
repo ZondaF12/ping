@@ -42,6 +42,23 @@ private struct MockAPIClient: APIClientProtocol {
     }
 }
 
+private struct MockSecretCache: SecretCacheProtocol {
+    var stored: SecretBundle?
+    var saveCalls: Int = 0
+
+    func load() -> SecretBundle? {
+        stored
+    }
+
+    func save(_ bundle: SecretBundle) -> Bool {
+        true
+    }
+
+    func clear() -> Bool {
+        true
+    }
+}
+
 struct HomeViewModelTests {
     private let sampleBundle = SecretBundle(
         secret: "br_usr_test",
@@ -70,7 +87,8 @@ struct HomeViewModelTests {
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
             api: MockAPIClient(
                 endpointsResult: sampleEndpoints
-            )
+            ),
+            cache: MockSecretCache()
         )
 
         await vm.bootstrap(pushToken: nil)
@@ -86,7 +104,8 @@ struct HomeViewModelTests {
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
             api: MockAPIClient(
                 endpointsResult: sampleEndpoints
-            )
+            ),
+            cache: MockSecretCache()
         )
         await vm.bootstrap(pushToken: nil)
         try await vm.register(pushToken: "")
@@ -102,7 +121,8 @@ struct HomeViewModelTests {
             api: MockAPIClient(
                 endpointsResult: sampleEndpoints,
                 notifyCode: 202
-            )
+            ),
+            cache: MockSecretCache()
         )
         await vm.bootstrap(pushToken: String(repeating: "b", count: 64))
         await vm.sendTest()
@@ -117,13 +137,57 @@ struct HomeViewModelTests {
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
             api: MockAPIClient(
                 endpointsResult: sampleEndpoints
-            )
+            ),
+            cache: MockSecretCache()
         )
         await vm.bootstrap(pushToken: String(repeating: "c", count: 64))
         try await vm.refreshEndpoints()
 
         #expect(vm.endpoints.count == 1)
         #expect(vm.endpoints.first?.record_name == "dep_test")
+    }
+
+    @Test
+    @MainActor
+    func bootstrapWithCacheShowsCachedSecretImmediately() async {
+        let cached = SecretBundle(
+            secret: "br_usr_cached",
+            userRecordName: "user_cached",
+            deviceRecordName: "dep_cached",
+            cloudKitWebAuthToken: "ckwt_cached"
+        )
+        let vm = HomeViewModel(
+            cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
+            api: MockAPIClient(endpointsResult: sampleEndpoints),
+            cache: MockSecretCache(stored: cached)
+        )
+
+        await vm.bootstrap(pushToken: nil)
+
+        #expect(vm.secret == sampleBundle.secret)
+        #expect(vm.webhookURL.contains(sampleBundle.secret))
+    }
+
+    @Test
+    @MainActor
+    func bootstrapCloudKitFailureUsesCache() async {
+        struct SampleError: Error {}
+        let cached = SecretBundle(
+            secret: "br_usr_cached",
+            userRecordName: "user_cached",
+            deviceRecordName: "dep_cached",
+            cloudKitWebAuthToken: "ckwt_cached"
+        )
+        let vm = HomeViewModel(
+            cloudKit: MockCloudKitService(bundle: sampleBundle, error: SampleError()),
+            api: MockAPIClient(endpointsResult: sampleEndpoints),
+            cache: MockSecretCache(stored: cached)
+        )
+
+        await vm.bootstrap(pushToken: nil)
+
+        #expect(vm.secret == cached.secret)
+        #expect(vm.status?.contains("Using cached secret") == true)
     }
 }
 

@@ -10,25 +10,42 @@ final class HomeViewModel: ObservableObject {
     @Published var registerLog: String?
     @Published var endpoints: [EndpointResponse.Device] = []
     @Published var isBusy: Bool = false
+    @Published var isSyncingStartup: Bool = false
 
     private var bundle: SecretBundle?
     private let cloudKit: CloudKitServiceProtocol
     private let api: APIClientProtocol
+    private let cache: SecretCacheProtocol
 
     init(
-        cloudKit: CloudKitServiceProtocol = CloudKitService(),
-        api: APIClientProtocol = APIClient()
+        cloudKit: CloudKitServiceProtocol,
+        api: APIClientProtocol,
+        cache: SecretCacheProtocol
     ) {
         self.cloudKit = cloudKit
         self.api = api
+        self.cache = cache
+    }
+
+    convenience init() {
+        self.init(
+            cloudKit: CloudKitService(),
+            api: APIClient(),
+            cache: SecretCache()
+        )
     }
 
     func bootstrap(pushToken: String?) async {
+        if let cached = cache.load() {
+            applyBundle(cached)
+            isSyncingStartup = true
+            status = "Syncing latest data…"
+        }
         do {
-            let bundle = try await cloudKit.fetchOrCreateSecretBundle()
-            self.bundle = bundle
-            self.secret = bundle.secret
-            self.webhookURL = "\(AppConfig.apiBase)/v1/\(bundle.secret)"
+            let cloudBundle = try await cloudKit.fetchOrCreateSecretBundle()
+            applyBundle(cloudBundle)
+            _ = cache.save(cloudBundle)
+            isSyncingStartup = false
             if let token = pushToken, !token.isEmpty {
                 try await register(pushToken: token)
             } else {
@@ -36,7 +53,12 @@ final class HomeViewModel: ObservableObject {
             }
             try await refreshEndpoints()
         } catch {
-            status = "Startup failed: \(error.localizedDescription)"
+            isSyncingStartup = false
+            if bundle != nil {
+                status = "Using cached secret. Cloud sync failed: \(error.localizedDescription)"
+            } else {
+                status = "Startup failed: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -117,5 +139,11 @@ final class HomeViewModel: ObservableObject {
         let f = DateFormatter()
         f.timeStyle = .medium
         return f.string(from: Date())
+    }
+
+    private func applyBundle(_ bundle: SecretBundle) {
+        self.bundle = bundle
+        self.secret = bundle.secret
+        self.webhookURL = "\(AppConfig.apiBase)/v1/\(bundle.secret)"
     }
 }

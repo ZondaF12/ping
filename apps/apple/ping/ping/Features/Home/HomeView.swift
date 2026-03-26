@@ -9,9 +9,6 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Ping")
-                    .font(.largeTitle.bold())
-
                 Text("Webhook URL")
                     .font(.headline)
                 Text(vm.webhookURL.isEmpty ? "Preparing…" : vm.webhookURL)
@@ -41,6 +38,11 @@ struct HomeView: View {
                 }
 
                 if vm.isBusy { ProgressView() }
+                if vm.isSyncingStartup {
+                    Text("Syncing with CloudKit…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if let status = vm.status {
                     Text(status)
                         .font(.subheadline)
@@ -71,7 +73,7 @@ struct HomeView: View {
             await requestPushPermissionsAndRegisterForRemoteNotifications()
             await vm.bootstrap(pushToken: pushTokenStore.pushTokenHex)
         }
-        .onChange(of: pushTokenStore.pushTokenHex) { newToken in
+        .onChange(of: pushTokenStore.pushTokenHex) { _, newToken in
             guard let token = newToken, !token.isEmpty else { return }
             Task {
                 try? await vm.register(pushToken: token)
