@@ -8,7 +8,35 @@ export const Fonts = {
 } as const;
 
 /**
- * Subset of light/dark palette (muscle-memory-rn style) for Ping’s single screen.
+ * Dark product UI (brrr-style reference): near-black canvas, purple accent, lime CTA.
+ */
+export const Product = {
+    canvas: "#000000",
+    surface: "#141414",
+    surfaceElevated: "#1C1C1E",
+    text: "#FFFFFF",
+    textMuted: "#A1A1AA",
+    accentPurple: "#C4B5FD",
+    accentLime: "#A3FF4D",
+    accentLimeText: "#0A0A0A",
+    codePlain: "#E4E4E7",
+    codeUrl: "#C4B5FD",
+    codeString: "#FDE68A",
+    borderSubtle: "#27272A",
+    success: "#86EFAC",
+    error: "#FCA5A5",
+    info: "#D4D4D8",
+    warningBg: "#2A2510",
+    warningText: "#FCD34D",
+    logLabel: "#A1A1AA",
+    logBody: "#D4D4D8",
+    whiteButtonText: "#0A0A0A",
+} as const;
+
+export type ProductColors = typeof Product;
+
+/**
+ * Subset of light/dark palette for any legacy/system-variant usage.
  */
 export const Colors = {
     light: {

@@ -1,14 +1,25 @@
 import * as Device from "expo-device";
 import { isRunningInExpoGo } from "expo";
-import { Platform, StyleSheet, Text, useColorScheme } from "react-native";
-import { Colors } from "@/constants/theme";
+import { Platform, StyleSheet, Text } from "react-native";
+import { Colors, Product } from "@/constants/theme";
+import type { ColorSchemeName } from "@/constants/theme";
+
+type Props =
+    | { variant: "product" }
+    | { variant: "system"; scheme: ColorSchemeName };
 
 /**
  * Surfaces the same limitations Expo logs at runtime (Expo Go, simulator).
  */
-export function PushEnvironmentNote() {
-    const scheme = useColorScheme() === "dark" ? "dark" : "light";
-    const c = Colors[scheme];
+export function PushEnvironmentNote(props: Props) {
+    const c =
+        props.variant === "product"
+            ? {
+                  warningText: Product.warningText,
+                  warningBg: Product.warningBg,
+              }
+            : Colors[props.scheme];
+
     const parts: string[] = [];
 
     if (isRunningInExpoGo()) {

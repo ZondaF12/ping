@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { getApiBaseUrl } from "@/lib/config";
 import { registerForExpoPushTokenAsync } from "@/lib/notifications";
+import { WEBHOOK_TEST_PAYLOAD } from "@/lib/build-webhook-curl";
 import { postRegister, postWebhookNotify } from "@/lib/ping-api";
 
 export type Banner = {
@@ -8,7 +9,8 @@ export type Banner = {
     variant: "info" | "success" | "error";
 };
 
-export function usePingRegistration() {
+/** Used only inside PingRegistrationProvider so all screens share registration state. */
+export function usePingRegistrationImpl() {
     const [apiBase, setApiBase] = useState(getApiBaseUrl());
     const [banner, setBanner] = useState<Banner | null>(null);
     const [busy, setBusy] = useState(false);
@@ -95,12 +97,11 @@ export function usePingRegistration() {
                     return;
                 }
                 const { base } = reg;
-                const res = await postWebhookNotify(base, secret, {
-                    title: "Ping test",
-                    subtitle: "From the app",
-                    message: "If you see this, the webhook works.",
-                    url: "https://expo.dev",
-                });
+                const res = await postWebhookNotify(
+                    base,
+                    secret,
+                    WEBHOOK_TEST_PAYLOAD,
+                );
                 if (!res.ok) {
                     setBanner({
                         variant: "error",
