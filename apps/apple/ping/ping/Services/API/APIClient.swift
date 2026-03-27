@@ -1,10 +1,18 @@
 import Foundation
 
+/// `userInfo` key for failed HTTP responses from `getEndpoints` (Int).
+enum PingAPIErrorInfo {
+    static let httpStatusCode = "HTTPStatusCode"
+    static let httpBodySnippet = "HTTPBodySnippet"
+}
+
 protocol APIClientProtocol {
     func postRegister(
         body: RegisterRequestBody,
         cloudKitToken: String
     ) async throws
+
+    func getEndpoints(cloudKitToken: String, userRecordName: String?) async throws -> EndpointResponse
 
     func postNotify(secret: String, payload: String) async throws -> Bool
 }
@@ -26,6 +34,33 @@ struct APIClient: APIClientProtocol {
                 NSLocalizedDescriptionKey: "Register failed"
             ])
         }
+    }
+
+    func getEndpoints(cloudKitToken: String, userRecordName: String?) async throws -> EndpointResponse {
+        let url = URL(string: "\(AppConfig.apiBase)/v1/me/endpoints")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(cloudKitToken, forHTTPHeaderField: "X-CloudKit-Web-Auth-Token")
+        if let name = userRecordName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            request.setValue(name, forHTTPHeaderField: "X-User-Record-Name")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "ping.api", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "Endpoints failed: not an HTTP response"
+            ])
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let bodySnippet = String(data: data, encoding: .utf8).map { String($0.prefix(500)) } ?? ""
+            throw NSError(domain: "ping.api", code: http.statusCode, userInfo: [
+                NSLocalizedDescriptionKey: "Endpoints failed (\(http.statusCode))",
+                PingAPIErrorInfo.httpStatusCode: http.statusCode,
+                PingAPIErrorInfo.httpBodySnippet: bodySnippet
+            ])
+        }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(EndpointResponse.self, from: data)
     }
 
     func postNotify(secret: String, payload: String) async throws -> Bool {

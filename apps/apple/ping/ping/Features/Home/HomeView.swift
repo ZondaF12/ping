@@ -55,6 +55,16 @@ struct HomeView: View {
         }
         .preferredColorScheme(.dark)
         .navigationTitle("")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    DeviceEndpointsView()
+                } label: {
+                    Image(systemName: "ipad.and.iphone")
+                }
+                .accessibilityLabel("Device endpoints")
+            }
+        }
     }
 
     private var styledCurlExample: AttributedString {

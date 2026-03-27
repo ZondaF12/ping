@@ -12,13 +12,15 @@ export class SubscribersService {
 
   async upsertEndpoint(input: {
     keyDigest: string;
-    userKeyDigest: string;
     userRecordName: string;
-    cloudKitUserDigest: string;
     pushToken: string;
     recordName: string;
+    deviceKeyDigest: string;
     installationId?: string;
     platform?: string;
+    label?: string;
+    deviceKind?: string;
+    apnsEnvironment?: 'sandbox' | 'production';
   }): Promise<SubscriberDocument> {
     const now = new Date();
     const existing = await this.subscriberModel.findOne({
@@ -27,15 +29,17 @@ export class SubscribersService {
     if (!existing) {
       return this.subscriberModel.create({
         keyDigest: input.keyDigest,
-        userKeyDigest: input.userKeyDigest,
         userRecordName: input.userRecordName,
-        cloudKitUserDigest: input.cloudKitUserDigest,
         devices: [
           {
             pushToken: input.pushToken,
             recordName: input.recordName,
+            keyDigest: input.deviceKeyDigest,
             installationId: input.installationId,
             platform: input.platform,
+            label: input.label,
+            deviceKind: input.deviceKind,
+            apnsEnvironment: input.apnsEnvironment,
             isEnabled: true,
             createdAt: now,
             lastSeenAt: now,
@@ -44,26 +48,40 @@ export class SubscribersService {
         ],
       });
     }
-    existing.userKeyDigest = input.userKeyDigest;
     existing.userRecordName = input.userRecordName;
-    existing.cloudKitUserDigest = input.cloudKitUserDigest;
     const idx = existing.devices.findIndex(
       (d) =>
-        d.recordName === input.recordName || d.pushToken === input.pushToken,
+        d.recordName === input.recordName ||
+        d.pushToken === input.pushToken ||
+        (input.deviceKeyDigest && d.keyDigest === input.deviceKeyDigest),
     );
     if (idx >= 0) {
       existing.devices[idx].pushToken = input.pushToken;
       existing.devices[idx].recordName = input.recordName;
+      existing.devices[idx].keyDigest = input.deviceKeyDigest;
       existing.devices[idx].installationId = input.installationId;
       existing.devices[idx].platform = input.platform;
+      if (input.label !== undefined) {
+        existing.devices[idx].label = input.label;
+      }
+      if (input.deviceKind !== undefined) {
+        existing.devices[idx].deviceKind = input.deviceKind;
+      }
+      if (input.apnsEnvironment !== undefined) {
+        existing.devices[idx].apnsEnvironment = input.apnsEnvironment;
+      }
       existing.devices[idx].isEnabled = true;
       existing.devices[idx].lastSeenAt = now;
     } else {
       existing.devices.push({
         pushToken: input.pushToken,
         recordName: input.recordName,
+        keyDigest: input.deviceKeyDigest,
         installationId: input.installationId,
         platform: input.platform,
+        label: input.label,
+        deviceKind: input.deviceKind,
+        apnsEnvironment: input.apnsEnvironment,
         isEnabled: true,
         createdAt: now,
         lastSeenAt: now,
@@ -78,16 +96,18 @@ export class SubscribersService {
     return this.subscriberModel.findOne({ keyDigest }).exec();
   }
 
-  async findByUserKeyDigest(
-    userKeyDigest: string,
+  async findByUserRecordName(
+    userRecordName: string,
   ): Promise<SubscriberDocument | null> {
-    return this.subscriberModel.findOne({ userKeyDigest }).exec();
+    return this.subscriberModel.findOne({ userRecordName }).exec();
   }
 
-  async findByCloudKitUserDigest(
-    cloudKitUserDigest: string,
+  async findByDeviceKeyDigest(
+    deviceKeyDigest: string,
   ): Promise<SubscriberDocument | null> {
-    return this.subscriberModel.findOne({ cloudKitUserDigest }).exec();
+    return this.subscriberModel
+      .findOne({ 'devices.keyDigest': deviceKeyDigest })
+      .exec();
   }
 
   async markDevicesUsed(

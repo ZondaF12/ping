@@ -27,7 +27,7 @@ private struct MockAPIClient: APIClientProtocol {
         }
     }
 
-    func getEndpoints(cloudKitToken: String) async throws -> EndpointResponse {
+    func getEndpoints(cloudKitToken: String, userRecordName: String?) async throws -> EndpointResponse {
         if let endpointsError {
             throw endpointsError
         }
@@ -79,7 +79,7 @@ private struct CountingAPIClient: APIClientProtocol {
         await counter.increment()
     }
 
-    func getEndpoints(cloudKitToken: String) async throws -> EndpointResponse {
+    func getEndpoints(cloudKitToken: String, userRecordName: String?) async throws -> EndpointResponse {
         endpointsResult
     }
 
@@ -93,18 +93,22 @@ struct HomeViewModelTests {
         secret: "br_usr_test",
         userRecordName: "user_test",
         deviceRecordName: "dep_test",
-        cloudKitWebAuthToken: "ckwt_test"
+        cloudKitWebAuthToken: "ckwt_test",
+        deviceSecret: "br_dev_test"
     )
 
     private let sampleEndpoints = EndpointResponse(
-        user: .init(last_used_timestamp: nil, record_name: "user_test"),
+        user: .init(lastUsedTimestamp: nil, recordName: "user_test"),
         devices: [
             .init(
-                created_timestamp: "2026-03-26T00:00:00.000Z",
-                last_seen_timestamp: "2026-03-26T00:00:00.000Z",
-                last_used_timestamp: nil,
-                push_token: "a".repeating(count: 64),
-                record_name: "dep_test"
+                createdTimestamp: "2026-03-26T00:00:00.000Z",
+                lastSeenTimestamp: "2026-03-26T00:00:00.000Z",
+                lastUsedTimestamp: nil,
+                pushToken: "a".repeating(count: 64),
+                recordName: "dep_test",
+                deviceLabel: nil,
+                deviceKind: "iphone",
+                apnsEnvironment: "sandbox"
             )
         ]
     )
@@ -116,7 +120,8 @@ struct HomeViewModelTests {
             secret: "br_usr_cached",
             userRecordName: "user_cached",
             deviceRecordName: "dep_cached",
-            cloudKitWebAuthToken: "ckwt_cached"
+            cloudKitWebAuthToken: "ckwt_cached",
+            deviceSecret: "br_dev_cached"
         )
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
@@ -202,7 +207,8 @@ struct HomeViewModelTests {
             secret: "br_usr_cached",
             userRecordName: "user_cached",
             deviceRecordName: "dep_cached",
-            cloudKitWebAuthToken: "ckwt_cached"
+            cloudKitWebAuthToken: "ckwt_cached",
+            deviceSecret: "br_dev_cached"
         )
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
@@ -224,7 +230,8 @@ struct HomeViewModelTests {
             secret: "br_usr_cached",
             userRecordName: "user_cached",
             deviceRecordName: "dep_cached",
-            cloudKitWebAuthToken: "ckwt_cached"
+            cloudKitWebAuthToken: "ckwt_cached",
+            deviceSecret: "br_dev_cached"
         )
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: SampleError()),

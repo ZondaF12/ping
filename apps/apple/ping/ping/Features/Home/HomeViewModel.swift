@@ -8,7 +8,8 @@ final class HomeViewModel: ObservableObject {
     @Published var webhookURL: String = ""
     @Published var isBusy: Bool = false
 
-    private var bundle: SecretBundle?
+    private(set) var currentBundle: SecretBundle?
+
     private var metadata: SecretCacheMetadata = .empty
     private var isBackgroundSyncing = false
     private let cloudKit: CloudKitServiceProtocol
@@ -39,6 +40,12 @@ final class HomeViewModel: ObservableObject {
         if let cached = cache.load() {
             applyBundle(cached)
         }
+    }
+
+    /// Loads cache then attempts CloudKit sync (used by tests and cold start flows).
+    func bootstrap(pushToken: String?) async {
+        prepareForImmediateUse()
+        await syncInBackground(pushToken: pushToken)
     }
 
     func syncInBackground(pushToken: String?) async {
@@ -72,7 +79,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     func register(pushToken: String?) async throws {
-        guard let bundle else { return }
+        guard let bundle = currentBundle else { return }
         guard let token = pushToken, !token.isEmpty else {
             return
         }
@@ -94,7 +101,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     func sendTest() async -> Bool {
-        guard let bundle else {
+        guard let bundle = currentBundle else {
             return false
         }
         isBusy = true
@@ -135,7 +142,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func registerIfNeededSilently(pushToken: String, force: Bool) async throws {
-        guard let bundle else { return }
+        guard let bundle = currentBundle else { return }
         if !force && !shouldRegister(token: pushToken) {
             return
         }
@@ -152,7 +159,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func applyBundle(_ bundle: SecretBundle) {
-        self.bundle = bundle
+        self.currentBundle = bundle
         self.secret = bundle.secret
         self.webhookURL = "\(AppConfig.apiBase)/v1/\(bundle.secret)"
     }
@@ -160,10 +167,13 @@ final class HomeViewModel: ObservableObject {
     private func registerRequestBody(bundle: SecretBundle, pushToken: String) -> RegisterRequestBody {
         RegisterRequestBody(
             push_token: pushToken,
-            user_key_digest: Self.digest(bundle.secret),
             key_digest: Self.digest(bundle.secret),
+            device_key_digest: Self.digest(bundle.deviceSecret),
             record_name: bundle.deviceRecordName,
-            user_record_name: bundle.userRecordName
+            user_record_name: bundle.userRecordName,
+            device_label: DeviceInfo.deviceLabel,
+            device_kind: DeviceInfo.deviceKind,
+            apns_environment: DeviceInfo.apnsEnvironment
         )
     }
 }

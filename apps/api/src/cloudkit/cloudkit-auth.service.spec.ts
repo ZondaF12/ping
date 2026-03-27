@@ -20,9 +20,10 @@ describe('CloudKitAuthService', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({
-        users: [{ userRecordName: 'user_abc' }],
-      }),
+      json: () =>
+        Promise.resolve({
+          users: [{ userRecordName: 'user_abc' }],
+        }),
     } as Response);
 
     const service = new CloudKitAuthService(config);
@@ -36,9 +37,10 @@ describe('CloudKitAuthService', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({
-        users: [{}],
-      }),
+      json: () =>
+        Promise.resolve({
+          users: [{}],
+        }),
     } as Response);
 
     const service = new CloudKitAuthService(config);
@@ -51,7 +53,7 @@ describe('CloudKitAuthService', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 401,
-      json: async () => ({}),
+      json: () => Promise.resolve({}),
     } as Response);
 
     const service = new CloudKitAuthService(config);
@@ -64,7 +66,7 @@ describe('CloudKitAuthService', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 403,
-      json: async () => ({}),
+      json: () => Promise.resolve({}),
     } as Response);
 
     const service = new CloudKitAuthService(config);

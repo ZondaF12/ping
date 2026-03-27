@@ -70,17 +70,16 @@ export class NotificationsController {
         'CloudKit auth response missing user identity',
       );
     }
-    const resolvedIdentityDigest = this.cloudKitAuth.digestIdentity(
-      resolvedUserRecordName,
-    );
 
     await this.subscribers.upsertEndpoint({
       keyDigest: parsed.data.key_digest,
-      userKeyDigest: parsed.data.user_key_digest,
       userRecordName: resolvedUserRecordName,
-      cloudKitUserDigest: resolvedIdentityDigest,
       pushToken: parsed.data.push_token,
       recordName: parsed.data.record_name,
+      deviceKeyDigest: parsed.data.device_key_digest,
+      label: parsed.data.device_label,
+      deviceKind: parsed.data.device_kind,
+      apnsEnvironment: parsed.data.apns_environment,
     });
   }
 
@@ -88,6 +87,7 @@ export class NotificationsController {
   @SkipThrottle()
   async getEndpoints(
     @Headers('x-cloudkit-web-auth-token') cloudKitToken: string | undefined,
+    @Headers('x-user-record-name') userRecordNameFallback: string | undefined,
   ): Promise<{
     user: { record_name: string; last_used_timestamp: string | null };
     devices: Array<{
@@ -96,18 +96,25 @@ export class NotificationsController {
       last_used_timestamp: string | null;
       push_token: string;
       record_name: string;
+      device_label: string | null;
+      device_kind: string | null;
+      apns_environment: string | null;
     }>;
   }> {
     const auth = await this.requireCloudKitIdentity(cloudKitToken);
-    if (!auth.userRecordName) {
+    const resolvedUserRecordName =
+      auth.userRecordName?.trim() || userRecordNameFallback?.trim();
+    if (
+      !resolvedUserRecordName ||
+      !/^[A-Za-z0-9_\-:.]{8,256}$/.test(resolvedUserRecordName)
+    ) {
       throw new UnauthorizedException(
         'CloudKit auth response missing user identity',
       );
     }
-    const identityDigest = this.cloudKitAuth.digestIdentity(
-      auth.userRecordName,
+    const sub = await this.subscribers.findByUserRecordName(
+      resolvedUserRecordName,
     );
-    const sub = await this.subscribers.findByCloudKitUserDigest(identityDigest);
     if (!sub) {
       throw new NotFoundException('No endpoint found for key_digest');
     }
@@ -127,6 +134,9 @@ export class NotificationsController {
         last_used_timestamp: d.lastUsedAt ? d.lastUsedAt.toISOString() : null,
         push_token: d.pushToken,
         record_name: d.recordName,
+        device_label: d.label ?? null,
+        device_kind: d.deviceKind ?? null,
+        apns_environment: d.apnsEnvironment ?? null,
       })),
     };
   }
@@ -143,13 +153,26 @@ export class NotificationsController {
         return { success: false };
       }
       const secretDigest = this.digest.digest(secret);
-      const sub = await this.subscribers.findByKeyDigest(secretDigest);
+      let sub = await this.subscribers.findByKeyDigest(secretDigest);
+      let singleDeviceOnly = false;
+      if (!sub) {
+        sub = await this.subscribers.findByDeviceKeyDigest(secretDigest);
+        singleDeviceOnly = true;
+      }
       if (!sub || sub.devices.length === 0) {
         return { success: false };
       }
-      const tokens = sub.devices
-        .filter((d) => d.isEnabled)
-        .map((d) => d.pushToken);
+
+      let devicesToNotify = sub.devices.filter((d) => d.isEnabled);
+      if (singleDeviceOnly) {
+        devicesToNotify = devicesToNotify.filter(
+          (d) => d.keyDigest === secretDigest,
+        );
+      }
+      if (devicesToNotify.length === 0) {
+        return { success: false };
+      }
+
       const parsed = pingNotifyPayloadSchema.safeParse(body);
       if (!parsed.success) {
         return { success: false };
@@ -164,18 +187,24 @@ export class NotificationsController {
             }
           : notifyPayloadSchema.parse(parsed.data);
       const { invalidTokens, acceptedTokens } =
-        await this.apnsPush.sendToTokens(tokens, {
-          title: payload.title,
-          body: payload.message,
-          subtitle: payload.subtitle,
-          data: payload.url ? { url: payload.url } : undefined,
-        });
+        await this.apnsPush.sendToTokenTargets(
+          devicesToNotify.map((d) => ({
+            token: d.pushToken,
+            apnsEnvironment: d.apnsEnvironment,
+          })),
+          {
+            title: payload.title,
+            body: payload.message,
+            subtitle: payload.subtitle,
+            data: payload.url ? { url: payload.url } : undefined,
+          },
+        );
       const invalid = new Set(invalidTokens);
       for (const t of invalid) {
-        await this.subscribers.removeDeviceToken(secretDigest, t);
+        await this.subscribers.removeDeviceToken(sub.keyDigest, t);
       }
       if (acceptedTokens.length > 0) {
-        await this.subscribers.markDevicesUsed(secretDigest, acceptedTokens);
+        await this.subscribers.markDevicesUsed(sub.keyDigest, acceptedTokens);
       }
       return { success: acceptedTokens.length > 0 };
     } catch {

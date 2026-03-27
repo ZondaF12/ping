@@ -15,12 +15,26 @@ export const registerBodySchema = z.object({
 
 export type RegisterBody = z.infer<typeof registerBodySchema>;
 
+export const deviceKindSchema = z.enum([
+    "iphone",
+    "ipad",
+    "mac",
+    "tv",
+    "watch",
+    "vision",
+    "catalyst",
+    "unspecified",
+]);
+
 export const pingRegisterEndpointSchema = z.object({
     push_token: z.string().min(1).max(512),
-    user_key_digest: z.string().min(8).max(256),
     key_digest: z.string().min(8).max(256),
+    device_key_digest: z.string().min(8).max(256),
     record_name: z.string().min(1).max(256),
     user_record_name: z.string().min(8).max(256),
+    device_label: z.string().min(1).max(256).optional(),
+    device_kind: deviceKindSchema.optional(),
+    apns_environment: z.enum(["sandbox", "production"]),
 });
 
 export type pingRegisterEndpointBody = z.infer<

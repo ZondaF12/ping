@@ -3,6 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { createSign } from 'crypto';
 import { connect } from 'http2';
 
+export type ApnsTokenTarget = {
+  token: string;
+  apnsEnvironment?: 'sandbox' | 'production';
+};
+
 @Injectable()
 export class ApnsPushService {
   private readonly log = new Logger(ApnsPushService.name);
@@ -10,7 +15,9 @@ export class ApnsPushService {
   private readonly teamId: string;
   private readonly bundleId: string;
   private readonly privateKey: string;
-  private readonly host: string;
+  private readonly defaultHost: string;
+  private readonly sandboxHost = 'https://api.sandbox.push.apple.com';
+  private readonly productionHost = 'https://api.push.apple.com';
   private cachedToken: { value: string; expiresAtMs: number } | null = null;
 
   constructor(private readonly config: ConfigService) {
@@ -20,9 +27,7 @@ export class ApnsPushService {
     this.privateKey = this.loadPrivateKey();
     const useSandbox =
       this.config.get<string>('APPLE_APNS_USE_SANDBOX') !== 'false';
-    this.host = useSandbox
-      ? 'https://api.sandbox.push.apple.com'
-      : 'https://api.push.apple.com';
+    this.defaultHost = useSandbox ? this.sandboxHost : this.productionHost;
   }
 
   private require(name: string): string {
@@ -90,6 +95,17 @@ export class ApnsPushService {
     return String(error);
   }
 
+  private resolveHost(target: ApnsTokenTarget): string {
+    if (target.apnsEnvironment === 'sandbox') {
+      return this.sandboxHost;
+    }
+    if (target.apnsEnvironment === 'production') {
+      return this.productionHost;
+    }
+    return this.defaultHost;
+  }
+
+  /** @deprecated Prefer sendToTokenTargets for per-device environment */
   async sendToTokens(
     tokens: string[],
     message: {
@@ -99,22 +115,40 @@ export class ApnsPushService {
       data?: Record<string, unknown>;
     },
   ): Promise<{ invalidTokens: string[]; acceptedTokens: string[] }> {
+    return this.sendToTokenTargets(
+      tokens.map((token) => ({ token })),
+      message,
+    );
+  }
+
+  async sendToTokenTargets(
+    targets: ApnsTokenTarget[],
+    message: {
+      title?: string;
+      body?: string;
+      subtitle?: string;
+      data?: Record<string, unknown>;
+    },
+  ): Promise<{ invalidTokens: string[]; acceptedTokens: string[] }> {
     const invalidTokens: string[] = [];
     const acceptedTokens: string[] = [];
-    const valid = tokens.filter((t) => this.isLikelyApnsToken(t));
-    for (const token of tokens) {
-      if (!this.isLikelyApnsToken(token)) invalidTokens.push(token);
+    const validTargets = targets.filter((t) => this.isLikelyApnsToken(t.token));
+    for (const t of targets) {
+      if (!this.isLikelyApnsToken(t.token)) invalidTokens.push(t.token);
     }
-    if (valid.length === 0) {
+    if (validTargets.length === 0) {
       return { invalidTokens, acceptedTokens };
     }
 
-    const authToken = this.getAuthToken();
-    const client = connect(this.host);
-    client.on('error', (error: unknown) => {
-      this.log.error(`APNs client error: ${this.errorMessage(error)}`);
-    });
+    const byHost = new Map<string, ApnsTokenTarget[]>();
+    for (const t of validTargets) {
+      const host = this.resolveHost(t);
+      const list = byHost.get(host) ?? [];
+      list.push(t);
+      byHost.set(host, list);
+    }
 
+    const authToken = this.getAuthToken();
     const payload = {
       aps: {
         alert: {
@@ -127,67 +161,75 @@ export class ApnsPushService {
       ...(message.data ?? {}),
     };
 
-    try {
-      await Promise.all(
-        valid.map(
-          (token) =>
-            new Promise<void>((resolve) => {
-              const req = client.request({
-                ':method': 'POST',
-                ':path': `/3/device/${token}`,
-                authorization: `bearer ${authToken}`,
-                'apns-topic': this.bundleId,
-                'apns-push-type': 'alert',
-                'apns-priority': '10',
-              });
-              let rawBody = '';
-              req.setEncoding('utf8');
-              req.on('response', (headers) => {
-                const status = Number(headers[':status'] ?? 0);
-                req.on('data', (chunk) => {
-                  rawBody += chunk;
+    for (const [host, hostTargets] of byHost) {
+      const client = connect(host);
+      client.on('error', (error: unknown) => {
+        this.log.error(`APNs client error: ${this.errorMessage(error)}`);
+      });
+      try {
+        await Promise.all(
+          hostTargets.map(
+            (target) =>
+              new Promise<void>((resolve) => {
+                const token = target.token;
+                const req = client.request({
+                  ':method': 'POST',
+                  ':path': `/3/device/${token}`,
+                  authorization: `bearer ${authToken}`,
+                  'apns-topic': this.bundleId,
+                  'apns-push-type': 'alert',
+                  'apns-priority': '10',
                 });
-                req.on('end', () => {
-                  if (status === 200) {
-                    acceptedTokens.push(token);
+                let rawBody = '';
+                req.setEncoding('utf8');
+                req.on('response', (headers) => {
+                  const status = Number(headers[':status'] ?? 0);
+                  req.on('data', (chunk) => {
+                    rawBody += chunk;
+                  });
+                  req.on('end', () => {
+                    if (status === 200) {
+                      acceptedTokens.push(token);
+                      resolve();
+                      return;
+                    }
+                    let reason = 'Unknown';
+                    try {
+                      const parsed = JSON.parse(rawBody) as {
+                        reason?: string;
+                      };
+                      reason = parsed.reason ?? reason;
+                    } catch {
+                      // ignore malformed APNs error body
+                    }
+                    const permanentFailure =
+                      status === 410 ||
+                      reason === 'BadDeviceToken' ||
+                      reason === 'Unregistered' ||
+                      reason === 'DeviceTokenNotForTopic';
+                    if (permanentFailure) {
+                      invalidTokens.push(token);
+                    } else {
+                      this.log.warn(
+                        `APNs rejected token (${status}): ${reason} [${token}]`,
+                      );
+                    }
                     resolve();
-                    return;
-                  }
-                  let reason = 'Unknown';
-                  try {
-                    const parsed = JSON.parse(rawBody) as {
-                      reason?: string;
-                    };
-                    reason = parsed.reason ?? reason;
-                  } catch {
-                    // ignore malformed APNs error body
-                  }
-                  if (
-                    reason === 'BadDeviceToken' ||
-                    reason === 'Unregistered' ||
-                    reason === 'DeviceTokenNotForTopic'
-                  ) {
-                    invalidTokens.push(token);
-                  } else {
-                    this.log.warn(
-                      `APNs rejected token (${status}): ${reason} [${token}]`,
-                    );
-                  }
+                  });
+                });
+                req.on('error', (error: unknown) => {
+                  this.log.error(
+                    `APNs request failed for token ${token}: ${this.errorMessage(error)}`,
+                  );
                   resolve();
                 });
-              });
-              req.on('error', (error: unknown) => {
-                this.log.error(
-                  `APNs request failed for token ${token}: ${this.errorMessage(error)}`,
-                );
-                resolve();
-              });
-              req.end(JSON.stringify(payload));
-            }),
-        ),
-      );
-    } finally {
-      client.close();
+                req.end(JSON.stringify(payload));
+              }),
+          ),
+        );
+      } finally {
+        client.close();
+      }
     }
 
     return { invalidTokens, acceptedTokens };
