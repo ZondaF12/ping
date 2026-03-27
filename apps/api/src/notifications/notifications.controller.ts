@@ -163,15 +163,13 @@ export class NotificationsController {
               url: undefined,
             }
           : notifyPayloadSchema.parse(parsed.data);
-      const { invalidTokens, acceptedTokens } = await this.apnsPush.sendToTokens(
-        tokens,
-        {
+      const { invalidTokens, acceptedTokens } =
+        await this.apnsPush.sendToTokens(tokens, {
           title: payload.title,
           body: payload.message,
           subtitle: payload.subtitle,
           data: payload.url ? { url: payload.url } : undefined,
-        },
-      );
+        });
       const invalid = new Set(invalidTokens);
       for (const t of invalid) {
         await this.subscribers.removeDeviceToken(secretDigest, t);

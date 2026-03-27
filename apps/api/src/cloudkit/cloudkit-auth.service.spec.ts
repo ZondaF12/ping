@@ -55,9 +55,9 @@ describe('CloudKitAuthService', () => {
     } as Response);
 
     const service = new CloudKitAuthService(config);
-    await expect(service.verifyWebAuthToken('bad-token')).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      service.verifyWebAuthToken('bad-token'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('throws forbidden when Apple returns 403', async () => {
@@ -68,8 +68,8 @@ describe('CloudKitAuthService', () => {
     } as Response);
 
     const service = new CloudKitAuthService(config);
-    await expect(service.verifyWebAuthToken('bad-token')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      service.verifyWebAuthToken('bad-token'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

@@ -1,12 +1,5 @@
 import Foundation
 
-struct NotifyPayload: Encodable {
-    let title: String
-    let subtitle: String
-    let message: String
-    let url: String
-}
-
 struct NotifyResponse: Decodable {
     let success: Bool
 }

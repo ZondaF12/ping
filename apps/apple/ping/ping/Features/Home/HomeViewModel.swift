@@ -100,12 +100,7 @@ final class HomeViewModel: ObservableObject {
         isBusy = true
         defer { isBusy = false }
         do {
-            let payload = NotifyPayload(
-                title: "Ping test",
-                subtitle: "From SwiftUI",
-                message: "If you see this, the webhook works.",
-                url: "https://expo.dev"
-            )
+            let payload = "Hello, World! 🎉"
             return try await api.postNotify(secret: bundle.secret, payload: payload)
         } catch {
             return false
@@ -113,17 +108,10 @@ final class HomeViewModel: ObservableObject {
     }
 
     func curlExample() -> String {
-        let payload = NotifyPayload(
-            title: "Ping test",
-            subtitle: "From SwiftUI",
-            message: "If you see this, the webhook works.",
-            url: "https://expo.dev"
-        )
-        let jsonData = try? JSONEncoder().encode(payload)
-        let json = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let payload = "Hello, World! 🎉"
         return """
         curl -X POST \(webhookURL) \\
-          -d '\(json)'
+          -d '\(payload)'
         """
     }
 

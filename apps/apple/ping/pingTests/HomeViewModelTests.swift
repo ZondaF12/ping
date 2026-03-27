@@ -34,7 +34,7 @@ private struct MockAPIClient: APIClientProtocol {
         return endpointsResult
     }
 
-    func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool {
+    func postNotify(secret: String, payload: String) async throws -> Bool {
         if let notifyError {
             throw notifyError
         }
@@ -83,7 +83,7 @@ private struct CountingAPIClient: APIClientProtocol {
         endpointsResult
     }
 
-    func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool {
+    func postNotify(secret: String, payload: String) async throws -> Bool {
         true
     }
 }

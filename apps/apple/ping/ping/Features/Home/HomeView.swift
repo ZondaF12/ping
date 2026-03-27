@@ -5,8 +5,6 @@ struct HomeView: View {
     @StateObject private var vm = HomeViewModel()
     @State private var copiedToastVisible = false
     @State private var hasStarted = false
-    @State private var confettiParticles: [ConfettiParticle] = []
-    @State private var sendTestButtonFrame: CGRect = .zero
     @State private var sendButtonState: SendButtonState = .idle
 
     var body: some View {
@@ -20,10 +18,7 @@ struct HomeView: View {
                     styledCurlExample: styledCurlExample,
                     isBusy: vm.isBusy,
                     sendButtonState: sendButtonState,
-                    confettiParticles: confettiParticles,
-                    onSendTapped: handleSendTestTap,
-                    onParticleComplete: removeConfettiParticle,
-                    onButtonFrameChanged: { sendTestButtonFrame = $0 }
+                    onSendTapped: handleSendTestTap
                 )
                 HomeActionButtonsView(
                     curlText: vm.curlExample(),
@@ -67,7 +62,17 @@ struct HomeView: View {
         var styled = AttributedString(raw)
         styled.foregroundColor = .gray
         if let urlRange = styled.range(of: vm.webhookURL), !vm.webhookURL.isEmpty {
-            styled[urlRange].foregroundColor = .orange
+            styled[urlRange].foregroundColor = .purple
+        }
+        if let dataFlagRange = raw.range(of: "-d '") {
+            let payloadStart = dataFlagRange.upperBound
+            if let payloadEnd = raw[payloadStart...].firstIndex(of: "'") {
+                let openingQuote = raw.index(before: payloadStart)
+                let payloadWithQuotes = String(raw[openingQuote...payloadEnd])
+                if let payloadRange = styled.range(of: payloadWithQuotes) {
+                    styled[payloadRange].foregroundColor = .green
+                }
+            }
         }
         return styled
     }
@@ -81,7 +86,6 @@ struct HomeView: View {
             let success = await vm.sendTest()
             if success {
                 HomeFeedback.success()
-                spawnConfettiBurst()
                 await MainActor.run {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         sendButtonState = .sent
@@ -114,15 +118,6 @@ struct HomeView: View {
                 copiedToastVisible = false
             }
         }
-    }
-
-    private func spawnConfettiBurst() {
-        guard sendTestButtonFrame != .zero else { return }
-        confettiParticles.append(contentsOf: ConfettiParticle.makeBurst(origin: sendTestButtonFrame.center))
-    }
-
-    private func removeConfettiParticle(id: UUID) {
-        confettiParticles.removeAll { $0.id == id }
     }
 
     private var isRunningPreview: Bool {

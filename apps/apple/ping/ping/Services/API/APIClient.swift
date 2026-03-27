@@ -6,7 +6,7 @@ protocol APIClientProtocol {
         cloudKitToken: String
     ) async throws
 
-    func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool
+    func postNotify(secret: String, payload: String) async throws -> Bool
 }
 
 struct APIClient: APIClientProtocol {
@@ -28,7 +28,7 @@ struct APIClient: APIClientProtocol {
         }
     }
 
-    func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool {
+    func postNotify(secret: String, payload: String) async throws -> Bool {
         let encodedSecret = secret.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? secret
         let url = URL(string: "\(AppConfig.apiBase)/v1/\(encodedSecret)")!
         var request = URLRequest(url: url)
