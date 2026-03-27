@@ -8,7 +8,7 @@ async function getOrCreateSecret(): Promise<string> {
     const existing = await SecureStore.getItemAsync(SECRET_KEY);
     if (existing) return existing;
     const bytes = await Crypto.getRandomBytesAsync(24);
-    const secret = `br_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+    const secret = `ping_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
     await SecureStore.setItemAsync(SECRET_KEY, secret);
     return secret;
 }
