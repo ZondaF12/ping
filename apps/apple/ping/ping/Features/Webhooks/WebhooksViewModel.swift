@@ -7,6 +7,7 @@ final class WebhooksViewModel: ObservableObject {
     @Published private(set) var userWebhookURL: String = ""
     @Published private(set) var userLastUsedTimestamp: String?
     @Published private(set) var isLoading = false
+    @Published private(set) var isRefreshing = false
     @Published private(set) var isRotating = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var emptyStateHint: String?
@@ -14,31 +15,62 @@ final class WebhooksViewModel: ObservableObject {
     private let api: APIClientProtocol
     private let cache: SecretCacheProtocol
     private let cloudKit: CloudKitServiceProtocol
+    private let snapshotStore: EndpointsSnapshotStoring
 
     init(
         api: APIClientProtocol = APIClient(),
         cache: SecretCacheProtocol = SecretCache(),
-        cloudKit: CloudKitServiceProtocol = CloudKitService()
+        cloudKit: CloudKitServiceProtocol = CloudKitService(),
+        snapshotStore: EndpointsSnapshotStoring = EndpointsSnapshotStore()
     ) {
         self.api = api
         self.cache = cache
         self.cloudKit = cloudKit
+        self.snapshotStore = snapshotStore
     }
 
     func load() async {
         applyUserWebhookFromCache()
-        userLastUsedTimestamp = nil
 
         guard let baseBundle = cache.load(), !baseBundle.cloudKitWebAuthToken.isEmpty else {
             rows = []
+            userLastUsedTimestamp = nil
             emptyStateHint = nil
             errorMessage = "Sign in to iCloud to load devices."
+            isLoading = false
+            isRefreshing = false
             return
         }
-        isLoading = true
-        errorMessage = nil
-        emptyStateHint = nil
-        defer { isLoading = false }
+
+        let hadSnapshotForUser: Bool
+        if let snapshot = snapshotStore.loadSnapshot(), snapshot.userRecordName == baseBundle.userRecordName {
+            rows = snapshot.rows(mappingBundle: baseBundle)
+            userLastUsedTimestamp = snapshot.userLastUsedTimestamp
+            hadSnapshotForUser = true
+            errorMessage = nil
+            if rows.isEmpty {
+                emptyStateHint =
+                    "No devices listed yet. Finish setup on the home screen (notifications + sync), then pull to refresh."
+            } else {
+                emptyStateHint = nil
+            }
+        } else {
+            userLastUsedTimestamp = nil
+            rows = []
+            hadSnapshotForUser = false
+            emptyStateHint = nil
+            errorMessage = nil
+        }
+
+        let useBlockingLoader = !hadSnapshotForUser
+        isRefreshing = true
+        if useBlockingLoader {
+            isLoading = true
+        }
+        defer {
+            isLoading = false
+            isRefreshing = false
+        }
 
         let bundleForRequest: SecretBundle
         do {
@@ -48,29 +80,18 @@ final class WebhooksViewModel: ObservableObject {
             bundleForRequest = baseBundle
         }
 
+        let mappingBundleAfterCK = cache.load() ?? bundleForRequest
+
         do {
             let response = try await loadEndpointsRefreshingTokenIfUnauthorized(bundle: bundleForRequest)
             userLastUsedTimestamp = response.user.lastUsedTimestamp
             let mappingBundle = cache.load() ?? bundleForRequest
             applyUserWebhook(from: mappingBundle)
-            rows = response.devices.map { device in
-                let isLocal = device.recordName == mappingBundle.deviceRecordName
-                let webhook: String?
-                if isLocal, !mappingBundle.deviceSecret.isEmpty {
-                    webhook = "\(AppConfig.apiBase)/v1/\(mappingBundle.deviceSecret)"
-                } else {
-                    webhook = nil
-                }
-                return DeviceEndpointRow(
-                    recordName: device.recordName,
-                    deviceLabel: device.deviceLabel ?? device.recordName,
-                    deviceKind: device.deviceKind,
-                    webhookURL: webhook,
-                    isLocalDevice: isLocal,
-                    lastSeenTimestamp: device.lastSeenTimestamp,
-                    lastUsedTimestamp: device.lastUsedTimestamp
-                )
-            }
+            rows = mapDevicesToRows(response.devices, mappingBundle: mappingBundle)
+            snapshotStore.saveSnapshot(
+                PersistedEndpointsSnapshot(userRecordName: mappingBundle.userRecordName, response: response)
+            )
+            errorMessage = nil
             if rows.isEmpty {
                 emptyStateHint =
                     "No devices listed yet. Finish setup on the home screen (notifications + sync), then pull to refresh."
@@ -78,9 +99,47 @@ final class WebhooksViewModel: ObservableObject {
                 emptyStateHint = nil
             }
         } catch {
-            rows = []
-            emptyStateHint = nil
-            errorMessage = userFacingErrorMessage(for: error)
+            if hadSnapshotForUser,
+               let snap = snapshotStore.loadSnapshot(),
+               snap.userRecordName == baseBundle.userRecordName
+            {
+                rows = snap.rows(mappingBundle: mappingBundleAfterCK)
+                userLastUsedTimestamp = snap.userLastUsedTimestamp
+                if rows.isEmpty {
+                    emptyStateHint =
+                        "No devices listed yet. Finish setup on the home screen (notifications + sync), then pull to refresh."
+                }
+                errorMessage = userFacingRefreshError(for: error)
+            } else {
+                rows = []
+                userLastUsedTimestamp = nil
+                emptyStateHint = nil
+                errorMessage = userFacingErrorMessage(for: error)
+            }
+        }
+    }
+
+    private func mapDevicesToRows(
+        _ devices: [EndpointResponse.Device],
+        mappingBundle: SecretBundle
+    ) -> [DeviceEndpointRow] {
+        devices.map { device in
+            let isLocal = device.recordName == mappingBundle.deviceRecordName
+            let webhook: String?
+            if isLocal, !mappingBundle.deviceSecret.isEmpty {
+                webhook = "\(AppConfig.apiBase)/v1/\(mappingBundle.deviceSecret)"
+            } else {
+                webhook = nil
+            }
+            return DeviceEndpointRow(
+                recordName: device.recordName,
+                deviceLabel: device.deviceLabel ?? device.recordName,
+                deviceKind: device.deviceKind,
+                webhookURL: webhook,
+                isLocalDevice: isLocal,
+                lastSeenTimestamp: device.lastSeenTimestamp,
+                lastUsedTimestamp: device.lastUsedTimestamp
+            )
         }
     }
 
@@ -182,6 +241,14 @@ final class WebhooksViewModel: ObservableObject {
         return "Couldn’t load devices. \(error.localizedDescription)"
         #else
         return "Couldn’t load devices. Check your connection and try again."
+        #endif
+    }
+
+    private func userFacingRefreshError(for error: Error) -> String {
+        #if DEBUG
+        return "Couldn’t refresh devices (showing last load). \(userFacingErrorMessage(for: error))"
+        #else
+        return "Couldn’t refresh devices. Showing the last successful load."
         #endif
     }
 }

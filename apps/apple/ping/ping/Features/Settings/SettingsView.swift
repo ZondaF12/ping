@@ -23,7 +23,9 @@ struct SettingsView: View {
                         trailingStyle: .none
                     )
                 }
+            }
 
+            Section {
                 NavigationLink {
                     WebhooksView()
                 } label: {
@@ -113,14 +115,9 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button {
+                Button(role: .close) {
                     dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.secondary, Color.secondary.opacity(0.35))
                 }
-                .accessibilityLabel("Close")
             }
         }
     }

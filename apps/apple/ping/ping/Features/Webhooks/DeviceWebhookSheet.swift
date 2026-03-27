@@ -11,7 +11,7 @@ struct DeviceWebhookSheet: View {
     @State private var confirmRotateDevice = false
 
     private var showsDeviceCurl: Bool {
-        row.isLocalDevice && !homeVM.deviceWebhookURL.isEmpty
+        !homeVM.deviceWebhookURL.isEmpty
     }
 
     var body: some View {

@@ -181,18 +181,24 @@ struct WebhooksView: View {
             .buttonStyle(.plain)
 
             Menu {
-                Button("Regenerate device URL", role: .destructive) {
-                    Task {
-                        await vm.rotateLocalDeviceWebhook(pushToken: pushTokenStore.pushTokenHex)
-                        homeVM.prepareForImmediateUse()
+                if row.isLocalDevice {
+                    Button("Regenerate device URL", role: .destructive) {
+                        Task {
+                            await vm.rotateLocalDeviceWebhook(pushToken: pushTokenStore.pushTokenHex)
+                            homeVM.prepareForImmediateUse()
+                        }
+                    }
+                } else {
+                    Button("View webhook") {
+                        selectedDevice = row
                     }
                 }
             } label: {
-                Image(systemName: "ellipsis")
+                Image(systemName: "ellipsis.circle")
                     .font(.title3)
+                    .foregroundStyle(.primary)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
-                    .foregroundStyle(.primary)
             }
         }
     }
