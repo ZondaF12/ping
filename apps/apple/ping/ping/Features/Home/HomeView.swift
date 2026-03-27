@@ -6,6 +6,9 @@ struct HomeView: View {
     @State private var copiedToastVisible = false
     @State private var hasStarted = false
     @State private var sendButtonState: SendButtonState = .idle
+    @State private var confirmRotateUserWebhook = false
+    @State private var showRotateUserError = false
+    @State private var rotateUserErrorMessage = ""
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -24,6 +27,15 @@ struct HomeView: View {
                     curlText: vm.curlExample(),
                     onCopy: copyCurlSnippet
                 )
+                Button {
+                    confirmRotateUserWebhook = true
+                } label: {
+                    Label("Regenerate webhook URL", systemImage: "arrow.clockwise")
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .foregroundStyle(.orange.opacity(0.95))
+                .disabled(vm.isBusy || vm.webhookURL.isEmpty)
                 HomeDocsLinkView()
                 Spacer()
             }
@@ -52,6 +64,30 @@ struct HomeView: View {
             Task {
                 try? await vm.register(pushToken: token)
             }
+        }
+        .confirmationDialog(
+            "Regenerate your user webhook URL?",
+            isPresented: $confirmRotateUserWebhook,
+            titleVisibility: .visible
+        ) {
+            Button("Regenerate", role: .destructive) {
+                Task {
+                    do {
+                        try await vm.rotateUserWebhook(pushToken: pushTokenStore.pushTokenHex)
+                    } catch {
+                        rotateUserErrorMessage = error.localizedDescription
+                        showRotateUserError = true
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The old URL stops working immediately. Per-device URLs are unchanged unless you rotate them on the Devices screen.")
+        }
+        .alert("Couldn’t rotate webhook", isPresented: $showRotateUserError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(rotateUserErrorMessage)
         }
         .preferredColorScheme(.dark)
         .navigationTitle("")

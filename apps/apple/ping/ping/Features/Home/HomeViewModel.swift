@@ -4,7 +4,7 @@ import Combine
 
 @MainActor
 final class HomeViewModel: ObservableObject {
-    @Published var secret: String = "br_usr_pending"
+    @Published var secret: String = "ping_usr_pending"
     @Published var webhookURL: String = ""
     @Published var isBusy: Bool = false
 
@@ -87,10 +87,31 @@ final class HomeViewModel: ObservableObject {
         isBusy = true
         defer { isBusy = false }
 
-        let body = registerRequestBody(bundle: bundle, pushToken: token)
+        let body = Self.makeRegisterRequestBody(bundle: bundle, pushToken: token)
 
         try await api.postRegister(
             body: body,
+            cloudKitToken: bundle.cloudKitWebAuthToken
+        )
+        metadata = SecretCacheMetadata(
+            lastSyncedAt: metadata.lastSyncedAt,
+            lastRegisteredPushToken: token
+        )
+        cache.saveMetadata(metadata)
+    }
+
+    /// Regenerates the user-level webhook secret in CloudKit and re-registers with the API.
+    func rotateUserWebhook(pushToken: String?) async throws {
+        guard let token = pushToken, !token.isEmpty else {
+            return
+        }
+        isBusy = true
+        defer { isBusy = false }
+        let bundle = try await cloudKit.regenerateUserSecret()
+        applyBundle(bundle)
+        _ = cache.save(bundle)
+        try await api.postRegister(
+            body: Self.makeRegisterRequestBody(bundle: bundle, pushToken: token),
             cloudKitToken: bundle.cloudKitWebAuthToken
         )
         metadata = SecretCacheMetadata(
@@ -122,6 +143,19 @@ final class HomeViewModel: ObservableObject {
         """
     }
 
+    static func makeRegisterRequestBody(bundle: SecretBundle, pushToken: String) -> RegisterRequestBody {
+        RegisterRequestBody(
+            push_token: pushToken,
+            key_digest: digest(bundle.secret),
+            device_key_digest: digest(bundle.deviceSecret),
+            record_name: bundle.deviceRecordName,
+            user_record_name: bundle.userRecordName,
+            device_label: DeviceInfo.deviceLabel,
+            device_kind: DeviceInfo.deviceKind,
+            apns_environment: DeviceInfo.apnsEnvironment
+        )
+    }
+
     private static func digest(_ raw: String) -> String {
         let bytes = SHA256.hash(data: Data(raw.utf8))
         return Data(bytes).base64EncodedString()
@@ -146,7 +180,7 @@ final class HomeViewModel: ObservableObject {
         if !force && !shouldRegister(token: pushToken) {
             return
         }
-        let body = registerRequestBody(bundle: bundle, pushToken: pushToken)
+        let body = Self.makeRegisterRequestBody(bundle: bundle, pushToken: pushToken)
         try await api.postRegister(
             body: body,
             cloudKitToken: bundle.cloudKitWebAuthToken
@@ -164,16 +198,4 @@ final class HomeViewModel: ObservableObject {
         self.webhookURL = "\(AppConfig.apiBase)/v1/\(bundle.secret)"
     }
 
-    private func registerRequestBody(bundle: SecretBundle, pushToken: String) -> RegisterRequestBody {
-        RegisterRequestBody(
-            push_token: pushToken,
-            key_digest: Self.digest(bundle.secret),
-            device_key_digest: Self.digest(bundle.deviceSecret),
-            record_name: bundle.deviceRecordName,
-            user_record_name: bundle.userRecordName,
-            device_label: DeviceInfo.deviceLabel,
-            device_kind: DeviceInfo.deviceKind,
-            apns_environment: DeviceInfo.apnsEnvironment
-        )
-    }
 }

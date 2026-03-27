@@ -12,6 +12,20 @@ private struct MockCloudKitService: CloudKitServiceProtocol {
         }
         return bundle
     }
+
+    func regenerateUserSecret() async throws -> SecretBundle {
+        if let error {
+            throw error
+        }
+        return bundle
+    }
+
+    func regenerateDeviceSecret() async throws -> SecretBundle {
+        if let error {
+            throw error
+        }
+        return bundle
+    }
 }
 
 private struct MockAPIClient: APIClientProtocol {
@@ -90,11 +104,11 @@ private struct CountingAPIClient: APIClientProtocol {
 
 struct HomeViewModelTests {
     private let sampleBundle = SecretBundle(
-        secret: "br_usr_test",
+        secret: "ping_usr_test",
         userRecordName: "user_test",
         deviceRecordName: "dep_test",
         cloudKitWebAuthToken: "ckwt_test",
-        deviceSecret: "br_dev_test"
+        deviceSecret: "ping_dev_test"
     )
 
     private let sampleEndpoints = EndpointResponse(
@@ -117,11 +131,11 @@ struct HomeViewModelTests {
     @MainActor
     func prepareForImmediateUseLoadsCachedBundleImmediately() async {
         let cached = SecretBundle(
-            secret: "br_usr_cached",
+            secret: "ping_usr_cached",
             userRecordName: "user_cached",
             deviceRecordName: "dep_cached",
             cloudKitWebAuthToken: "ckwt_cached",
-            deviceSecret: "br_dev_cached"
+            deviceSecret: "ping_dev_cached"
         )
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
@@ -150,7 +164,7 @@ struct HomeViewModelTests {
         let success = await vm.sendTest()
 
         #expect(success == false)
-        #expect(vm.secret == "br_usr_pending")
+        #expect(vm.secret == "ping_usr_pending")
         #expect(vm.webhookURL.isEmpty)
         #expect(vm.isBusy == false)
     }
@@ -204,11 +218,11 @@ struct HomeViewModelTests {
     @MainActor
     func bootstrapWithCacheShowsCachedSecretImmediately() async {
         let cached = SecretBundle(
-            secret: "br_usr_cached",
+            secret: "ping_usr_cached",
             userRecordName: "user_cached",
             deviceRecordName: "dep_cached",
             cloudKitWebAuthToken: "ckwt_cached",
-            deviceSecret: "br_dev_cached"
+            deviceSecret: "ping_dev_cached"
         )
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
@@ -227,11 +241,11 @@ struct HomeViewModelTests {
     func bootstrapCloudKitFailureUsesCache() async {
         struct SampleError: Error {}
         let cached = SecretBundle(
-            secret: "br_usr_cached",
+            secret: "ping_g_usr_cached",
             userRecordName: "user_cached",
             deviceRecordName: "dep_cached",
             cloudKitWebAuthToken: "ckwt_cached",
-            deviceSecret: "br_dev_cached"
+            deviceSecret: "ping_dev_cached"
         )
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: SampleError()),

@@ -3,6 +3,8 @@ import Foundation
 
 protocol CloudKitServiceProtocol {
     func fetchOrCreateSecretBundle() async throws -> SecretBundle
+    func regenerateUserSecret() async throws -> SecretBundle
+    func regenerateDeviceSecret() async throws -> SecretBundle
 }
 
 struct CloudKitService: CloudKitServiceProtocol {
@@ -33,6 +35,66 @@ struct CloudKitService: CloudKitServiceProtocol {
             ])
         }
 
+        return try await fetchDeviceRecordAndBundle(
+            secret: secret,
+            userRecordName: userRecordName,
+            installationId: installationId,
+            deviceRecordName: deviceRecordName,
+            forceNewDeviceSecret: false
+        )
+    }
+
+    func regenerateUserSecret() async throws -> SecretBundle {
+        let userRecordID = try await fetchUserRecordID()
+        let userRecordName = userRecordID.recordName
+        let secretRecordID = CKRecord.ID(recordName: "usr_\(userRecordName)")
+        let secretRecord = try await fetchRecord(with: secretRecordID)
+        secretRecord["secret"] = generatedUserSecret() as CKRecordValue
+        _ = try await saveRecord(secretRecord)
+        guard let secret = secretRecord["secret"] as? String else {
+            throw NSError(domain: "ping.ck", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "SecretRecord missing secret"
+            ])
+        }
+        let installationId = loadOrCreateInstallationId()
+        let deviceRecordName = "dep_\(installationId)"
+        return try await fetchDeviceRecordAndBundle(
+            secret: secret,
+            userRecordName: userRecordName,
+            installationId: installationId,
+            deviceRecordName: deviceRecordName,
+            forceNewDeviceSecret: false
+        )
+    }
+
+    func regenerateDeviceSecret() async throws -> SecretBundle {
+        let userRecordID = try await fetchUserRecordID()
+        let userRecordName = userRecordID.recordName
+        let secretRecordID = CKRecord.ID(recordName: "usr_\(userRecordName)")
+        let secretRecord = try await fetchRecord(with: secretRecordID)
+        guard let secret = secretRecord["secret"] as? String else {
+            throw NSError(domain: "ping.ck", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "SecretRecord missing secret"
+            ])
+        }
+        let installationId = loadOrCreateInstallationId()
+        let deviceRecordName = "dep_\(installationId)"
+        return try await fetchDeviceRecordAndBundle(
+            secret: secret,
+            userRecordName: userRecordName,
+            installationId: installationId,
+            deviceRecordName: deviceRecordName,
+            forceNewDeviceSecret: true
+        )
+    }
+
+    private func fetchDeviceRecordAndBundle(
+        secret: String,
+        userRecordName: String,
+        installationId: String,
+        deviceRecordName: String,
+        forceNewDeviceSecret: Bool
+    ) async throws -> SecretBundle {
         let deviceID = CKRecord.ID(recordName: deviceRecordName)
         let deviceRecord: CKRecord
         do {
@@ -47,7 +109,10 @@ struct CloudKitService: CloudKitServiceProtocol {
         deviceRecord["last_seen_timestamp"] = Date() as CKRecordValue
 
         let deviceSecret: String
-        if let existing = deviceRecord["device_secret"] as? String, !existing.isEmpty {
+        if forceNewDeviceSecret {
+            deviceSecret = generatedDeviceSecret()
+            deviceRecord["device_secret"] = deviceSecret as CKRecordValue
+        } else if let existing = deviceRecord["device_secret"] as? String, !existing.isEmpty {
             deviceSecret = existing
         } else {
             deviceSecret = generatedDeviceSecret()
@@ -160,13 +225,13 @@ struct CloudKitService: CloudKitServiceProtocol {
     private func generatedUserSecret() -> String {
         let bytes = (0..<24).map { _ in UInt8.random(in: 0...255) }
         let hex = bytes.map { String(format: "%02x", $0) }.joined()
-        return "br_usr_\(hex)"
+        return "ping_usr_\(hex)"
     }
 
     private func generatedDeviceSecret() -> String {
         let bytes = (0..<24).map { _ in UInt8.random(in: 0...255) }
         let hex = bytes.map { String(format: "%02x", $0) }.joined()
-        return "br_dev_\(hex)"
+        return "ping_dev_\(hex)"
     }
 
     private func loadOrCreateInstallationId() -> String {

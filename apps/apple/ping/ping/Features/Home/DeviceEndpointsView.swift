@@ -5,6 +5,7 @@ import SwiftUI
 final class DeviceEndpointsViewModel: ObservableObject {
     @Published private(set) var rows: [DeviceEndpointRow] = []
     @Published private(set) var isLoading = false
+    @Published private(set) var isRotating = false
     @Published private(set) var errorMessage: String?
     /// Shown when the request succeeds but the server returns no device rows (not an error).
     @Published private(set) var emptyStateHint: String?
@@ -115,6 +116,35 @@ final class DeviceEndpointsViewModel: ObservableObject {
         return nil
     }
 
+    func rotateLocalDeviceWebhook(pushToken: String?) async {
+        guard let token = pushToken, !token.isEmpty else {
+            errorMessage = "Enable notifications on the home screen first."
+            return
+        }
+        isRotating = true
+        errorMessage = nil
+        defer { isRotating = false }
+        do {
+            let bundle = try await cloudKit.regenerateDeviceSecret()
+            _ = cache.save(bundle)
+            try await api.postRegister(
+                body: HomeViewModel.makeRegisterRequestBody(bundle: bundle, pushToken: token),
+                cloudKitToken: bundle.cloudKitWebAuthToken
+            )
+            await load()
+        } catch {
+            errorMessage = userFacingRotateError(for: error)
+        }
+    }
+
+    private func userFacingRotateError(for error: Error) -> String {
+        #if DEBUG
+        return "Couldn’t rotate device URL. \(error.localizedDescription)"
+        #else
+        return "Couldn’t rotate device URL. Check your connection and try again."
+        #endif
+    }
+
     private func userFacingErrorMessage(for error: Error) -> String {
         if let status = httpStatusCode(from: error) {
             switch status {
@@ -144,7 +174,9 @@ struct DeviceEndpointRow: Identifiable {
 }
 
 struct DeviceEndpointsView: View {
+    @EnvironmentObject private var pushTokenStore: PushTokenStore
     @StateObject private var vm = DeviceEndpointsViewModel()
+    @State private var confirmRotateDevice = false
 
     var body: some View {
         List {
@@ -185,6 +217,13 @@ struct DeviceEndpointsView: View {
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
+                    if row.isLocalDevice {
+                        Button("Regenerate device URL") {
+                            confirmRotateDevice = true
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.orange)
+                    }
                 }
                 .padding(.vertical, 4)
             }
@@ -192,9 +231,23 @@ struct DeviceEndpointsView: View {
         .navigationTitle("Devices")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
-            if vm.isLoading {
+            if vm.isLoading || vm.isRotating {
                 ProgressView()
             }
+        }
+        .confirmationDialog(
+            "Regenerate this device’s webhook URL?",
+            isPresented: $confirmRotateDevice,
+            titleVisibility: .visible
+        ) {
+            Button("Regenerate", role: .destructive) {
+                Task {
+                    await vm.rotateLocalDeviceWebhook(pushToken: pushTokenStore.pushTokenHex)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The old per-device URL stops working immediately.")
         }
         .task {
             await vm.load()
@@ -222,6 +275,7 @@ struct DeviceEndpointsView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationStack {
             DeviceEndpointsView()
+                .environmentObject(PushTokenStore())
         }
     }
 }
