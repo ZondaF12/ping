@@ -1,13 +1,14 @@
 import Combine
-import SwiftUI
+import Foundation
 
 @MainActor
-final class DeviceEndpointsViewModel: ObservableObject {
+final class WebhooksViewModel: ObservableObject {
     @Published private(set) var rows: [DeviceEndpointRow] = []
+    @Published private(set) var userWebhookURL: String = ""
+    @Published private(set) var userLastUsedTimestamp: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isRotating = false
     @Published private(set) var errorMessage: String?
-    /// Shown when the request succeeds but the server returns no device rows (not an error).
     @Published private(set) var emptyStateHint: String?
 
     private let api: APIClientProtocol
@@ -25,6 +26,9 @@ final class DeviceEndpointsViewModel: ObservableObject {
     }
 
     func load() async {
+        applyUserWebhookFromCache()
+        userLastUsedTimestamp = nil
+
         guard let baseBundle = cache.load(), !baseBundle.cloudKitWebAuthToken.isEmpty else {
             rows = []
             emptyStateHint = nil
@@ -36,7 +40,6 @@ final class DeviceEndpointsViewModel: ObservableObject {
         emptyStateHint = nil
         defer { isLoading = false }
 
-        // Fresh web auth token + persisted bundle before calling the API (stale tokens often yield 401).
         let bundleForRequest: SecretBundle
         do {
             bundleForRequest = try await cloudKit.fetchOrCreateSecretBundle()
@@ -47,7 +50,9 @@ final class DeviceEndpointsViewModel: ObservableObject {
 
         do {
             let response = try await loadEndpointsRefreshingTokenIfUnauthorized(bundle: bundleForRequest)
+            userLastUsedTimestamp = response.user.lastUsedTimestamp
             let mappingBundle = cache.load() ?? bundleForRequest
+            applyUserWebhook(from: mappingBundle)
             rows = response.devices.map { device in
                 let isLocal = device.recordName == mappingBundle.deviceRecordName
                 let webhook: String?
@@ -61,7 +66,9 @@ final class DeviceEndpointsViewModel: ObservableObject {
                     deviceLabel: device.deviceLabel ?? device.recordName,
                     deviceKind: device.deviceKind,
                     webhookURL: webhook,
-                    isLocalDevice: isLocal
+                    isLocalDevice: isLocal,
+                    lastSeenTimestamp: device.lastSeenTimestamp,
+                    lastUsedTimestamp: device.lastUsedTimestamp
                 )
             }
             if rows.isEmpty {
@@ -77,7 +84,22 @@ final class DeviceEndpointsViewModel: ObservableObject {
         }
     }
 
-    /// Fetches endpoints; on **401** refreshes the CloudKit bundle (new web auth token), saves it, and retries once.
+    private func applyUserWebhookFromCache() {
+        guard let bundle = cache.load() else {
+            userWebhookURL = ""
+            return
+        }
+        applyUserWebhook(from: bundle)
+    }
+
+    private func applyUserWebhook(from bundle: SecretBundle) {
+        guard !bundle.secret.isEmpty else {
+            userWebhookURL = ""
+            return
+        }
+        userWebhookURL = "\(AppConfig.apiBase)/v1/\(bundle.secret)"
+    }
+
     private func loadEndpointsRefreshingTokenIfUnauthorized(bundle: SecretBundle) async throws -> EndpointResponse {
         guard !bundle.cloudKitWebAuthToken.isEmpty else {
             throw NSError(
@@ -164,118 +186,13 @@ final class DeviceEndpointsViewModel: ObservableObject {
     }
 }
 
-struct DeviceEndpointRow: Identifiable {
+struct DeviceEndpointRow: Identifiable, Hashable {
     var id: String { recordName }
     let recordName: String
     let deviceLabel: String
     let deviceKind: String?
     let webhookURL: String?
     let isLocalDevice: Bool
-}
-
-struct DeviceEndpointsView: View {
-    @EnvironmentObject private var pushTokenStore: PushTokenStore
-    @StateObject private var vm = DeviceEndpointsViewModel()
-    @State private var confirmRotateDevice = false
-
-    var body: some View {
-        List {
-            if let errorMessage = vm.errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(.secondary)
-            }
-            if let hint = vm.emptyStateHint, vm.errorMessage == nil {
-                Text(hint)
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(vm.rows) { row in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(row.deviceLabel)
-                            .font(.headline)
-                        if row.isLocalDevice {
-                            Text("This device")
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.purple.opacity(0.25))
-                                .clipShape(Capsule())
-                        }
-                    }
-                    if let kind = row.deviceKind {
-                        Text(kindDisplayName(kind))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let url = row.webhookURL {
-                        Text(url)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.purple)
-                            .textSelection(.enabled)
-                    } else {
-                        Text("Webhook URL is only shown on the device that owns the secret.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                    if row.isLocalDevice {
-                        Button("Regenerate device URL") {
-                            confirmRotateDevice = true
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.orange)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-        }
-        .navigationTitle("Devices")
-        .navigationBarTitleDisplayMode(.inline)
-        .overlay {
-            if vm.isLoading || vm.isRotating {
-                ProgressView()
-            }
-        }
-        .confirmationDialog(
-            "Regenerate this device’s webhook URL?",
-            isPresented: $confirmRotateDevice,
-            titleVisibility: .visible
-        ) {
-            Button("Regenerate", role: .destructive) {
-                Task {
-                    await vm.rotateLocalDeviceWebhook(pushToken: pushTokenStore.pushTokenHex)
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The old per-device URL stops working immediately.")
-        }
-        .task {
-            await vm.load()
-        }
-        .refreshable {
-            await vm.load()
-        }
-    }
-
-    private func kindDisplayName(_ kind: String) -> String {
-        switch kind {
-        case "iphone": return "iPhone"
-        case "ipad": return "iPad"
-        case "mac": return "Mac"
-        case "tv": return "Apple TV"
-        case "watch": return "Apple Watch"
-        case "vision": return "Apple Vision"
-        case "catalyst": return "Mac (Catalyst)"
-        default: return kind.replacingOccurrences(of: "_", with: " ").capitalized
-        }
-    }
-}
-
-struct DeviceEndpointsView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationStack {
-            DeviceEndpointsView()
-                .environmentObject(PushTokenStore())
-        }
-    }
+    let lastSeenTimestamp: String?
+    let lastUsedTimestamp: String?
 }

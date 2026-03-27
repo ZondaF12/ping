@@ -6,9 +6,7 @@ struct HomeView: View {
     @State private var copiedToastVisible = false
     @State private var hasStarted = false
     @State private var sendButtonState: SendButtonState = .idle
-    @State private var confirmRotateUserWebhook = false
-    @State private var showRotateUserError = false
-    @State private var rotateUserErrorMessage = ""
+    @State private var showSettings = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -18,7 +16,7 @@ struct HomeView: View {
                 Spacer()
                 HomeHeroView()
                 HomeCurlCardView(
-                    styledCurlExample: styledCurlExample,
+                    styledCurlExample: vm.attributedCurlExample(),
                     isBusy: vm.isBusy,
                     sendButtonState: sendButtonState,
                     onSendTapped: handleSendTestTap
@@ -27,15 +25,6 @@ struct HomeView: View {
                     curlText: vm.curlExample(),
                     onCopy: copyCurlSnippet
                 )
-                Button {
-                    confirmRotateUserWebhook = true
-                } label: {
-                    Label("Regenerate webhook URL", systemImage: "arrow.clockwise")
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .foregroundStyle(.orange.opacity(0.95))
-                .disabled(vm.isBusy || vm.webhookURL.isEmpty)
                 HomeDocsLinkView()
                 Spacer()
             }
@@ -65,62 +54,29 @@ struct HomeView: View {
                 try? await vm.register(pushToken: token)
             }
         }
-        .confirmationDialog(
-            "Regenerate your user webhook URL?",
-            isPresented: $confirmRotateUserWebhook,
-            titleVisibility: .visible
-        ) {
-            Button("Regenerate", role: .destructive) {
-                Task {
-                    do {
-                        try await vm.rotateUserWebhook(pushToken: pushTokenStore.pushTokenHex)
-                    } catch {
-                        rotateUserErrorMessage = error.localizedDescription
-                        showRotateUserError = true
-                    }
-                }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                SettingsView()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The old URL stops working immediately. Per-device URLs are unchanged unless you rotate them on the Devices screen.")
+            .environmentObject(vm)
         }
-        .alert("Couldn’t rotate webhook", isPresented: $showRotateUserError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(rotateUserErrorMessage)
+        .onChange(of: showSettings) { _, isPresented in
+            if !isPresented {
+                vm.prepareForImmediateUse()
+            }
         }
         .preferredColorScheme(.dark)
         .navigationTitle("")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    DeviceEndpointsView()
+                Button {
+                    showSettings = true
                 } label: {
-                    Image(systemName: "ipad.and.iphone")
+                    Image(systemName: "gearshape.fill")
                 }
-                .accessibilityLabel("Device endpoints")
+                .accessibilityLabel("Settings")
             }
         }
-    }
-
-    private var styledCurlExample: AttributedString {
-        let raw = vm.curlExample()
-        var styled = AttributedString(raw)
-        styled.foregroundColor = .gray
-        if let urlRange = styled.range(of: vm.webhookURL), !vm.webhookURL.isEmpty {
-            styled[urlRange].foregroundColor = .purple
-        }
-        if let dataFlagRange = raw.range(of: "-d '") {
-            let payloadStart = dataFlagRange.upperBound
-            if let payloadEnd = raw[payloadStart...].firstIndex(of: "'") {
-                let openingQuote = raw.index(before: payloadStart)
-                let payloadWithQuotes = String(raw[openingQuote...payloadEnd])
-                if let payloadRange = styled.range(of: payloadWithQuotes) {
-                    styled[payloadRange].foregroundColor = .green
-                }
-            }
-        }
-        return styled
     }
 
     private func handleSendTestTap() {

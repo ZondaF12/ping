@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Combine
+import SwiftUI
 
 @MainActor
 final class HomeViewModel: ObservableObject {
@@ -135,12 +136,89 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+    /// Per-device webhook URL for the locally registered device (empty if no bundle or device secret).
+    var deviceWebhookURL: String {
+        guard let bundle = currentBundle, !bundle.deviceSecret.isEmpty else {
+            return ""
+        }
+        return "\(AppConfig.apiBase)/v1/\(bundle.deviceSecret)"
+    }
+
+    func sendDeviceTest() async -> Bool {
+        guard let bundle = currentBundle, !bundle.deviceSecret.isEmpty else {
+            return false
+        }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let payload = "Hello, World! 🎉"
+            return try await api.postNotify(secret: bundle.deviceSecret, payload: payload)
+        } catch {
+            return false
+        }
+    }
+
     func curlExample() -> String {
         let payload = "Hello, World! 🎉"
         return """
         curl -X POST \(webhookURL) \\
           -d '\(payload)'
         """
+    }
+
+    /// Syntax-highlighted curl for cards (home + webhooks settings).
+    func attributedCurlExample() -> AttributedString {
+        let raw = curlExample()
+        var styled = AttributedString(raw)
+        styled.foregroundColor = .gray
+        if let urlRange = styled.range(of: webhookURL), !webhookURL.isEmpty {
+            styled[urlRange].foregroundColor = .purple
+        }
+        if let dataFlagRange = raw.range(of: "-d '") {
+            let payloadStart = dataFlagRange.upperBound
+            if let payloadEnd = raw[payloadStart...].firstIndex(of: "'") {
+                let openingQuote = raw.index(before: payloadStart)
+                let payloadWithQuotes = String(raw[openingQuote...payloadEnd])
+                if let payloadRange = styled.range(of: payloadWithQuotes) {
+                    styled[payloadRange].foregroundColor = .green
+                }
+            }
+        }
+        return styled
+    }
+
+    func deviceCurlExample() -> String {
+        let payload = "Hello, World! 🎉"
+        let url = deviceWebhookURL
+        guard !url.isEmpty else {
+            return ""
+        }
+        return """
+        curl -X POST \(url) \\
+          -d '\(payload)'
+        """
+    }
+
+    /// Syntax-highlighted curl for the per-device webhook (local device only).
+    func attributedDeviceCurlExample() -> AttributedString {
+        let raw = deviceCurlExample()
+        var styled = AttributedString(raw)
+        styled.foregroundColor = .gray
+        let url = deviceWebhookURL
+        if let urlRange = styled.range(of: url), !url.isEmpty {
+            styled[urlRange].foregroundColor = .purple
+        }
+        if let dataFlagRange = raw.range(of: "-d '") {
+            let payloadStart = dataFlagRange.upperBound
+            if let payloadEnd = raw[payloadStart...].firstIndex(of: "'") {
+                let openingQuote = raw.index(before: payloadStart)
+                let payloadWithQuotes = String(raw[openingQuote...payloadEnd])
+                if let payloadRange = styled.range(of: payloadWithQuotes) {
+                    styled[payloadRange].foregroundColor = .green
+                }
+            }
+        }
+        return styled
     }
 
     static func makeRegisterRequestBody(bundle: SecretBundle, pushToken: String) -> RegisterRequestBody {
