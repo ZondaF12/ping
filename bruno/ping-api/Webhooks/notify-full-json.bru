@@ -1,0 +1,28 @@
+meta {
+  name: POST notify (full JSON)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/v1/{{secret}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "message": "The coffee machine is currently unreachable. Morale is expected to drop.",
+    "title": "Coffee Machine Offline",
+    "subtitle": "Kitchen",
+    "url": "https://example.com/status",
+    "image_url": "https://png.pngtree.com/png-clipart/20231206/original/pngtree-test-red-flat-icon-isolated-product-photo-png-image_13786256.png",
+    "expiration_date": "2026-04-23T09:00:00.000Z",
+    "interruption-level": "time-sensitive",
+    "filter-criteria": "work"
+  }
+}

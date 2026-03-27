@@ -8,6 +8,17 @@ export type ApnsTokenTarget = {
   apnsEnvironment?: 'sandbox' | 'production';
 };
 
+export type ApnsAlertMessage = {
+  title?: string;
+  body?: string;
+  subtitle?: string;
+  data?: Record<string, unknown>;
+  imageUrl?: string;
+  expirationDate?: Date;
+  interruptionLevel?: 'passive' | 'active' | 'time-sensitive';
+  filterCriteria?: string;
+};
+
 @Injectable()
 export class ApnsPushService {
   private readonly log = new Logger(ApnsPushService.name);
@@ -108,12 +119,7 @@ export class ApnsPushService {
   /** @deprecated Prefer sendToTokenTargets for per-device environment */
   async sendToTokens(
     tokens: string[],
-    message: {
-      title?: string;
-      body?: string;
-      subtitle?: string;
-      data?: Record<string, unknown>;
-    },
+    message: ApnsAlertMessage,
   ): Promise<{ invalidTokens: string[]; acceptedTokens: string[] }> {
     return this.sendToTokenTargets(
       tokens.map((token) => ({ token })),
@@ -121,14 +127,71 @@ export class ApnsPushService {
     );
   }
 
+  private buildApnsPayload(message: ApnsAlertMessage): Record<string, unknown> {
+    const alert: Record<string, string> = {};
+    if (message.title) {
+      alert.title = message.title;
+    }
+    if (message.subtitle) {
+      alert.subtitle = message.subtitle;
+    }
+    if (message.body !== undefined && message.body !== '') {
+      alert.body = message.body;
+    }
+
+    const aps: Record<string, unknown> = {
+      alert:
+        Object.keys(alert).length === 1 && alert.body !== undefined
+          ? alert.body
+          : alert,
+      sound: 'default',
+    };
+
+    if (message.interruptionLevel) {
+      aps['interruption-level'] = message.interruptionLevel;
+    }
+    if (message.filterCriteria) {
+      aps['filter-criteria'] = message.filterCriteria;
+    }
+    if (message.imageUrl) {
+      aps['mutable-content'] = 1;
+    }
+
+    const data: Record<string, unknown> = { ...(message.data ?? {}) };
+    if (message.imageUrl) {
+      data.image_url = message.imageUrl;
+    }
+
+    return { aps, ...data };
+  }
+
+  private buildApnsRequestHeaders(
+    message: ApnsAlertMessage,
+    authToken: string,
+    deviceToken: string,
+  ): Record<string, string> {
+    const headers: Record<string, string> = {
+      ':method': 'POST',
+      ':path': `/3/device/${deviceToken}`,
+      authorization: `bearer ${authToken}`,
+      'apns-topic': this.bundleId,
+      'apns-push-type': 'alert',
+      'apns-priority': message.interruptionLevel === 'passive' ? '5' : '10',
+    };
+    if (
+      message.expirationDate &&
+      !Number.isNaN(message.expirationDate.getTime())
+    ) {
+      headers['apns-expiration'] = String(
+        Math.floor(message.expirationDate.getTime() / 1000),
+      );
+    }
+    return headers;
+  }
+
   async sendToTokenTargets(
     targets: ApnsTokenTarget[],
-    message: {
-      title?: string;
-      body?: string;
-      subtitle?: string;
-      data?: Record<string, unknown>;
-    },
+    message: ApnsAlertMessage,
   ): Promise<{ invalidTokens: string[]; acceptedTokens: string[] }> {
     const invalidTokens: string[] = [];
     const acceptedTokens: string[] = [];
@@ -149,17 +212,7 @@ export class ApnsPushService {
     }
 
     const authToken = this.getAuthToken();
-    const payload = {
-      aps: {
-        alert: {
-          title: message.title,
-          subtitle: message.subtitle,
-          body: message.body,
-        },
-        sound: 'default',
-      },
-      ...(message.data ?? {}),
-    };
+    const payloadJson = JSON.stringify(this.buildApnsPayload(message));
 
     for (const [host, hostTargets] of byHost) {
       const client = connect(host);
@@ -172,14 +225,9 @@ export class ApnsPushService {
             (target) =>
               new Promise<void>((resolve) => {
                 const token = target.token;
-                const req = client.request({
-                  ':method': 'POST',
-                  ':path': `/3/device/${token}`,
-                  authorization: `bearer ${authToken}`,
-                  'apns-topic': this.bundleId,
-                  'apns-push-type': 'alert',
-                  'apns-priority': '10',
-                });
+                const req = client.request(
+                  this.buildApnsRequestHeaders(message, authToken, token),
+                );
                 let rawBody = '';
                 req.setEncoding('utf8');
                 req.on('response', (headers) => {
@@ -223,7 +271,7 @@ export class ApnsPushService {
                   );
                   resolve();
                 });
-                req.end(JSON.stringify(payload));
+                req.end(payloadJson);
               }),
           ),
         );

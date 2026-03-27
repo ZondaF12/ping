@@ -1,0 +1,17 @@
+meta {
+  name: POST notify (JSON string body)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/v1/{{secret}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body {
+  "Hello world! 🚀"
+}

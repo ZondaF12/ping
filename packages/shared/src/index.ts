@@ -5,6 +5,12 @@ export const notifyPayloadSchema = z.object({
     subtitle: z.string().max(300).optional(),
     message: z.string().min(1).max(4000),
     url: z.string().url().optional(),
+    image_url: z.string().url().optional(),
+    expiration_date: z.string().datetime({ offset: true }).optional(),
+    "interruption-level": z
+        .enum(["passive", "active", "time-sensitive"])
+        .optional(),
+    "filter-criteria": z.string().min(1).max(256).optional(),
 });
 
 export type NotifyPayload = z.infer<typeof notifyPayloadSchema>;

@@ -10,10 +10,12 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import {
+  type NotifyPayload,
   pingNotifyPayloadSchema,
   pingRegisterEndpointSchema,
   notifyPayloadSchema,
@@ -141,12 +143,83 @@ export class NotificationsController {
     };
   }
 
-  @Post(':secret')
-  @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @HttpCode(HttpStatus.OK)
-  async notify(
-    @Param('secret') secret: string,
-    @Body() body: unknown,
+  private pickQueryString(
+    query: Record<string, unknown>,
+    key: string,
+  ): string | undefined {
+    const v = query[key];
+    if (v === undefined || v === null) {
+      return undefined;
+    }
+    if (Array.isArray(v)) {
+      const first: unknown = v[0];
+      return typeof first === 'string' ? first : undefined;
+    }
+    return typeof v === 'string' ? v : undefined;
+  }
+
+  /** Build a notify body object from GET query parameters (brrr-style). */
+  private notifyPayloadFromQuery(
+    query: Record<string, unknown>,
+  ): Record<string, string> | null {
+    const message = this.pickQueryString(query, 'message');
+    if (!message) {
+      return null;
+    }
+    const out: Record<string, string> = { message };
+    const add = (qKey: string, objKey: string = qKey) => {
+      const v = this.pickQueryString(query, qKey);
+      if (v !== undefined && v !== '') {
+        out[objKey] = v;
+      }
+    };
+    add('title');
+    add('subtitle');
+    add('url');
+    add('image_url');
+    add('expiration_date');
+    add('interruption-level');
+    add('filter-criteria');
+    return out;
+  }
+
+  private notifyPayloadFromStringBody(message: string): NotifyPayload {
+    return {
+      message,
+      title: undefined,
+      subtitle: undefined,
+      url: undefined,
+      image_url: undefined,
+      expiration_date: undefined,
+      'interruption-level': undefined,
+      'filter-criteria': undefined,
+    };
+  }
+
+  private buildNotifyData(
+    payload: NotifyPayload,
+  ): Record<string, unknown> | undefined {
+    const data: Record<string, unknown> = {};
+    if (payload.url) {
+      data.url = payload.url;
+    }
+    if (payload.image_url) {
+      data.image_url = payload.image_url;
+    }
+    return Object.keys(data).length > 0 ? data : undefined;
+  }
+
+  private expirationDateFromPayload(payload: NotifyPayload): Date | undefined {
+    if (!payload.expiration_date) {
+      return undefined;
+    }
+    const d = new Date(payload.expiration_date);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+
+  private async notifyWithPayload(
+    secret: string,
+    payload: NotifyPayload,
   ): Promise<{ success: boolean }> {
     try {
       if (!secret || secret.length > 256) {
@@ -173,19 +246,6 @@ export class NotificationsController {
         return { success: false };
       }
 
-      const parsed = pingNotifyPayloadSchema.safeParse(body);
-      if (!parsed.success) {
-        return { success: false };
-      }
-      const payload =
-        typeof parsed.data === 'string'
-          ? {
-              message: parsed.data,
-              title: undefined,
-              subtitle: undefined,
-              url: undefined,
-            }
-          : notifyPayloadSchema.parse(parsed.data);
       const { invalidTokens, acceptedTokens } =
         await this.apnsPush.sendToTokenTargets(
           devicesToNotify.map((d) => ({
@@ -196,7 +256,11 @@ export class NotificationsController {
             title: payload.title,
             body: payload.message,
             subtitle: payload.subtitle,
-            data: payload.url ? { url: payload.url } : undefined,
+            data: this.buildNotifyData(payload),
+            imageUrl: payload.image_url,
+            expirationDate: this.expirationDateFromPayload(payload),
+            interruptionLevel: payload['interruption-level'],
+            filterCriteria: payload['filter-criteria'],
           },
         );
       const invalid = new Set(invalidTokens);
@@ -210,5 +274,41 @@ export class NotificationsController {
     } catch {
       return { success: false };
     }
+  }
+
+  @Get(':secret')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  async notifyGet(
+    @Param('secret') secret: string,
+    @Query() query: Record<string, unknown>,
+  ): Promise<{ success: boolean }> {
+    const raw = this.notifyPayloadFromQuery(query);
+    if (!raw) {
+      return { success: false };
+    }
+    const parsed = notifyPayloadSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { success: false };
+    }
+    return this.notifyWithPayload(secret, parsed.data);
+  }
+
+  @Post(':secret')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  async notify(
+    @Param('secret') secret: string,
+    @Body() body: unknown,
+  ): Promise<{ success: boolean }> {
+    const parsed = pingNotifyPayloadSchema.safeParse(body);
+    if (!parsed.success) {
+      return { success: false };
+    }
+    const payload =
+      typeof parsed.data === 'string'
+        ? this.notifyPayloadFromStringBody(parsed.data)
+        : notifyPayloadSchema.parse(parsed.data);
+    return this.notifyWithPayload(secret, payload);
   }
 }

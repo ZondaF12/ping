@@ -1,0 +1,10 @@
+meta {
+  name: GET notify (hyphenated query params)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/v1/{{secret}}?message=Focus%20test&title=Important&interruption-level=time-sensitive&filter-criteria=work&url=https%3A%2F%2Fexample.com
+  body: none
+}
