@@ -4,12 +4,15 @@ import Security
 protocol SecretCacheProtocol {
     func load() -> SecretBundle?
     func save(_ bundle: SecretBundle) -> Bool
+    func loadMetadata() -> SecretCacheMetadata
+    func saveMetadata(_ metadata: SecretCacheMetadata)
     func clear() -> Bool
 }
 
 struct SecretCache: SecretCacheProtocol {
     private let service = "ping.secretbundle.v1"
     private let account = "default"
+    private let metadataKey = "ping.secretbundle.metadata.v1"
 
     func load() -> SecretBundle? {
         let query: [String: Any] = [
@@ -49,6 +52,23 @@ struct SecretCache: SecretCacheProtocol {
         return addStatus == errSecSuccess
     }
 
+    func loadMetadata() -> SecretCacheMetadata {
+        guard
+            let data = UserDefaults.standard.data(forKey: metadataKey),
+            let metadata = try? JSONDecoder().decode(SecretCacheMetadata.self, from: data)
+        else {
+            return .empty
+        }
+        return metadata
+    }
+
+    func saveMetadata(_ metadata: SecretCacheMetadata) {
+        guard let data = try? JSONEncoder().encode(metadata) else {
+            return
+        }
+        UserDefaults.standard.set(data, forKey: metadataKey)
+    }
+
     func clear() -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -56,6 +76,10 @@ struct SecretCache: SecretCacheProtocol {
             kSecAttrAccount as String: account
         ]
         let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+        let success = status == errSecSuccess || status == errSecItemNotFound
+        if success {
+            UserDefaults.standard.removeObject(forKey: metadataKey)
+        }
+        return success
     }
 }
