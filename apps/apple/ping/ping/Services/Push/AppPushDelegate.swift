@@ -39,4 +39,27 @@ extension AppPushDelegate: UNUserNotificationCenterDelegate {
     ) async -> UNNotificationPresentationOptions {
         return [.banner, .badge, .sound]
     }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard
+            let rawURL = response.notification.request.content.userInfo["url"] as? String,
+            let destination = URL(string: rawURL),
+            let scheme = destination.scheme?.lowercased(),
+            scheme == "http" || scheme == "https"
+        else {
+            #if DEBUG
+            if response.notification.request.content.userInfo["url"] != nil {
+                print("Ignoring invalid notification url payload")
+            }
+            #endif
+            return
+        }
+
+        await MainActor.run {
+            UIApplication.shared.open(destination)
+        }
+    }
 }
