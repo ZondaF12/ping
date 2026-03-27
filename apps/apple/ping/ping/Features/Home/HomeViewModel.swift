@@ -41,11 +41,6 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    func bootstrap(pushToken: String?) async {
-        prepareForImmediateUse()
-        await syncInBackground(pushToken: pushToken)
-    }
-
     func syncInBackground(pushToken: String?) async {
         if isBackgroundSyncing {
             return
@@ -85,13 +80,7 @@ final class HomeViewModel: ObservableObject {
         isBusy = true
         defer { isBusy = false }
 
-        let body = RegisterRequestBody(
-            push_token: token,
-            user_key_digest: Self.digest(bundle.secret),
-            key_digest: Self.digest(bundle.secret),
-            record_name: bundle.deviceRecordName,
-            user_record_name: bundle.userRecordName
-        )
+        let body = registerRequestBody(bundle: bundle, pushToken: token)
 
         try await api.postRegister(
             body: body,
@@ -162,13 +151,7 @@ final class HomeViewModel: ObservableObject {
         if !force && !shouldRegister(token: pushToken) {
             return
         }
-        let body = RegisterRequestBody(
-            push_token: pushToken,
-            user_key_digest: Self.digest(bundle.secret),
-            key_digest: Self.digest(bundle.secret),
-            record_name: bundle.deviceRecordName,
-            user_record_name: bundle.userRecordName
-        )
+        let body = registerRequestBody(bundle: bundle, pushToken: pushToken)
         try await api.postRegister(
             body: body,
             cloudKitToken: bundle.cloudKitWebAuthToken
@@ -184,5 +167,15 @@ final class HomeViewModel: ObservableObject {
         self.bundle = bundle
         self.secret = bundle.secret
         self.webhookURL = "\(AppConfig.apiBase)/v1/\(bundle.secret)"
+    }
+
+    private func registerRequestBody(bundle: SecretBundle, pushToken: String) -> RegisterRequestBody {
+        RegisterRequestBody(
+            push_token: pushToken,
+            user_key_digest: Self.digest(bundle.secret),
+            key_digest: Self.digest(bundle.secret),
+            record_name: bundle.deviceRecordName,
+            user_record_name: bundle.userRecordName
+        )
     }
 }

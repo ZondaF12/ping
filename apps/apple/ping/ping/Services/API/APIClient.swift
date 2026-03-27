@@ -6,8 +6,6 @@ protocol APIClientProtocol {
         cloudKitToken: String
     ) async throws
 
-    func getEndpoints(cloudKitToken: String) async throws -> EndpointResponse
-
     func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool
 }
 
@@ -28,21 +26,6 @@ struct APIClient: APIClientProtocol {
                 NSLocalizedDescriptionKey: "Register failed"
             ])
         }
-    }
-
-    func getEndpoints(cloudKitToken: String) async throws -> EndpointResponse {
-        let url = URL(string: "\(AppConfig.apiBase)/v1/me/endpoints")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(cloudKitToken, forHTTPHeaderField: "X-CloudKit-Web-Auth-Token")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw NSError(domain: "ping.api", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "Get endpoints failed"
-            ])
-        }
-        return try JSONDecoder().decode(EndpointResponse.self, from: data)
     }
 
     func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool {
