@@ -6,7 +6,7 @@ export class Subscriber {
   @Prop({ required: true, unique: true, index: true })
   keyDigest!: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ required: true, unique: true, index: true })
   userRecordName!: string;
 
   @Prop({

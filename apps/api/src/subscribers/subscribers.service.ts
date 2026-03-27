@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Subscriber, SubscriberDocument } from './schemas/subscriber.schema';
@@ -23,9 +23,19 @@ export class SubscribersService {
     apnsEnvironment?: 'sandbox' | 'production';
   }): Promise<SubscriberDocument> {
     const now = new Date();
-    const existing = await this.subscriberModel.findOne({
-      keyDigest: input.keyDigest,
-    });
+    // Prefer CloudKit identity so user secret rotation (new key_digest, same user) updates one row.
+    let existing = await this.subscriberModel
+      .findOne({ userRecordName: input.userRecordName })
+      .exec();
+    if (!existing) {
+      const byKey = await this.subscriberModel
+        .findOne({ keyDigest: input.keyDigest })
+        .exec();
+      if (byKey && byKey.userRecordName !== input.userRecordName) {
+        throw new ForbiddenException('Subscriber identity mismatch');
+      }
+      existing = byKey;
+    }
     if (!existing) {
       return this.subscriberModel.create({
         keyDigest: input.keyDigest,
@@ -48,6 +58,7 @@ export class SubscribersService {
         ],
       });
     }
+    existing.keyDigest = input.keyDigest;
     existing.userRecordName = input.userRecordName;
     const idx = existing.devices.findIndex(
       (d) =>
