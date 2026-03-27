@@ -133,53 +133,55 @@ export class NotificationsController {
 
   @Post(':secret')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
-  @HttpCode(HttpStatus.ACCEPTED)
+  @HttpCode(HttpStatus.OK)
   async notify(
     @Param('secret') secret: string,
     @Body() body: unknown,
-  ): Promise<{ delivered: number }> {
-    if (!secret || secret.length > 256) {
-      throw new BadRequestException('Invalid secret');
-    }
-    const secretDigest = this.digest.digest(secret);
-    const sub = await this.subscribers.findByKeyDigest(secretDigest);
-    if (!sub || sub.devices.length === 0) {
-      throw new NotFoundException(
-        'No devices registered for this webhook secret.',
+  ): Promise<{ success: boolean }> {
+    try {
+      if (!secret || secret.length > 256) {
+        return { success: false };
+      }
+      const secretDigest = this.digest.digest(secret);
+      const sub = await this.subscribers.findByKeyDigest(secretDigest);
+      if (!sub || sub.devices.length === 0) {
+        return { success: false };
+      }
+      const tokens = sub.devices
+        .filter((d) => d.isEnabled)
+        .map((d) => d.pushToken);
+      const parsed = pingNotifyPayloadSchema.safeParse(body);
+      if (!parsed.success) {
+        return { success: false };
+      }
+      const payload =
+        typeof parsed.data === 'string'
+          ? {
+              message: parsed.data,
+              title: undefined,
+              subtitle: undefined,
+              url: undefined,
+            }
+          : notifyPayloadSchema.parse(parsed.data);
+      const { invalidTokens, acceptedTokens } = await this.apnsPush.sendToTokens(
+        tokens,
+        {
+          title: payload.title,
+          body: payload.message,
+          subtitle: payload.subtitle,
+          data: payload.url ? { url: payload.url } : undefined,
+        },
       );
+      const invalid = new Set(invalidTokens);
+      for (const t of invalid) {
+        await this.subscribers.removeDeviceToken(secretDigest, t);
+      }
+      if (acceptedTokens.length > 0) {
+        await this.subscribers.markDevicesUsed(secretDigest, acceptedTokens);
+      }
+      return { success: acceptedTokens.length > 0 };
+    } catch {
+      return { success: false };
     }
-    const tokens = sub.devices
-      .filter((d) => d.isEnabled)
-      .map((d) => d.pushToken);
-    const parsed = pingNotifyPayloadSchema.safeParse(body);
-    if (!parsed.success) {
-      throw new BadRequestException('Invalid body');
-    }
-    const payload =
-      typeof parsed.data === 'string'
-        ? {
-            message: parsed.data,
-            title: undefined,
-            subtitle: undefined,
-            url: undefined,
-          }
-        : notifyPayloadSchema.parse(parsed.data);
-    const { invalidTokens, acceptedTokens } = await this.apnsPush.sendToTokens(
-      tokens,
-      {
-        title: payload.title,
-        body: payload.message,
-        subtitle: payload.subtitle,
-        data: payload.url ? { url: payload.url } : undefined,
-      },
-    );
-    const invalid = new Set(invalidTokens);
-    for (const t of invalid) {
-      await this.subscribers.removeDeviceToken(secretDigest, t);
-    }
-    if (acceptedTokens.length > 0) {
-      await this.subscribers.markDevicesUsed(secretDigest, acceptedTokens);
-    }
-    return { delivered: acceptedTokens.length };
   }
 }

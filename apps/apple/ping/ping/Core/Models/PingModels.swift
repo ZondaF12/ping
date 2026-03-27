@@ -7,6 +7,10 @@ struct NotifyPayload: Encodable {
     let url: String
 }
 
+struct NotifyResponse: Decodable {
+    let success: Bool
+}
+
 struct RegisterRequestBody: Encodable {
     let push_token: String
     let user_key_digest: String
@@ -39,4 +43,14 @@ struct SecretBundle: Codable, Equatable {
     let userRecordName: String
     let deviceRecordName: String
     let cloudKitWebAuthToken: String
+}
+
+struct SecretCacheMetadata: Codable, Equatable {
+    let lastSyncedAt: Date?
+    let lastRegisteredPushToken: String?
+
+    static let empty = SecretCacheMetadata(
+        lastSyncedAt: nil,
+        lastRegisteredPushToken: nil
+    )
 }

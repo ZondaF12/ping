@@ -8,7 +8,7 @@ protocol APIClientProtocol {
 
     func getEndpoints(cloudKitToken: String) async throws -> EndpointResponse
 
-    func postNotify(secret: String, payload: NotifyPayload) async throws -> Int
+    func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool
 }
 
 struct APIClient: APIClientProtocol {
@@ -45,14 +45,14 @@ struct APIClient: APIClientProtocol {
         return try JSONDecoder().decode(EndpointResponse.self, from: data)
     }
 
-    func postNotify(secret: String, payload: NotifyPayload) async throws -> Int {
+    func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool {
         let encodedSecret = secret.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? secret
         let url = URL(string: "\(AppConfig.apiBase)/v1/\(encodedSecret)")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(payload)
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw NSError(domain: "ping.api", code: 3, userInfo: [
                 NSLocalizedDescriptionKey: "Notify failed"
@@ -63,6 +63,7 @@ struct APIClient: APIClientProtocol {
                 NSLocalizedDescriptionKey: "Notify failed (\(http.statusCode))"
             ])
         }
-        return http.statusCode
+        let parsed = try JSONDecoder().decode(NotifyResponse.self, from: data)
+        return parsed.success
     }
 }

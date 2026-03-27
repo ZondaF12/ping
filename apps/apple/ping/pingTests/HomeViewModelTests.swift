@@ -18,7 +18,7 @@ private struct MockAPIClient: APIClientProtocol {
     var registerError: Error?
     var endpointsResult: EndpointResponse
     var endpointsError: Error?
-    var notifyCode: Int = 202
+    var notifySuccess: Bool = true
     var notifyError: Error?
 
     func postRegister(body: RegisterRequestBody, cloudKitToken: String) async throws {
@@ -34,17 +34,17 @@ private struct MockAPIClient: APIClientProtocol {
         return endpointsResult
     }
 
-    func postNotify(secret: String, payload: NotifyPayload) async throws -> Int {
+    func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool {
         if let notifyError {
             throw notifyError
         }
-        return notifyCode
+        return notifySuccess
     }
 }
 
 private struct MockSecretCache: SecretCacheProtocol {
     var stored: SecretBundle?
-    var saveCalls: Int = 0
+    var metadata: SecretCacheMetadata = .empty
 
     func load() -> SecretBundle? {
         stored
@@ -54,7 +54,36 @@ private struct MockSecretCache: SecretCacheProtocol {
         true
     }
 
+    func loadMetadata() -> SecretCacheMetadata {
+        metadata
+    }
+
+    func saveMetadata(_ metadata: SecretCacheMetadata) {}
+
     func clear() -> Bool {
+        true
+    }
+}
+
+private actor RegisterCounter {
+    private(set) var count = 0
+    func increment() { count += 1 }
+    func value() -> Int { count }
+}
+
+private struct CountingAPIClient: APIClientProtocol {
+    let counter: RegisterCounter
+    let endpointsResult: EndpointResponse
+
+    func postRegister(body: RegisterRequestBody, cloudKitToken: String) async throws {
+        await counter.increment()
+    }
+
+    func getEndpoints(cloudKitToken: String) async throws -> EndpointResponse {
+        endpointsResult
+    }
+
+    func postNotify(secret: String, payload: NotifyPayload) async throws -> Bool {
         true
     }
 }
@@ -82,7 +111,30 @@ struct HomeViewModelTests {
 
     @Test
     @MainActor
-    func bootstrapWithoutTokenShowsWaitingStatus() async {
+    func prepareForImmediateUseLoadsCachedBundleImmediately() async {
+        let cached = SecretBundle(
+            secret: "br_usr_cached",
+            userRecordName: "user_cached",
+            deviceRecordName: "dep_cached",
+            cloudKitWebAuthToken: "ckwt_cached"
+        )
+        let vm = HomeViewModel(
+            cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
+            api: MockAPIClient(
+                endpointsResult: sampleEndpoints
+            ),
+            cache: MockSecretCache(stored: cached)
+        )
+
+        vm.prepareForImmediateUse()
+
+        #expect(vm.secret == cached.secret)
+        #expect(vm.webhookURL.contains(cached.secret))
+    }
+
+    @Test
+    @MainActor
+    func sendTestWithoutBundleKeepsViewModelStable() async {
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
             api: MockAPIClient(
@@ -90,61 +142,57 @@ struct HomeViewModelTests {
             ),
             cache: MockSecretCache()
         )
+        let success = await vm.sendTest()
 
-        await vm.bootstrap(pushToken: nil)
-
-        #expect(vm.secret == sampleBundle.secret)
-        #expect(vm.status?.contains("Waiting for APNs token") == true)
+        #expect(success == false)
+        #expect(vm.secret == "br_usr_pending")
+        #expect(vm.webhookURL.isEmpty)
+        #expect(vm.isBusy == false)
     }
 
     @Test
     @MainActor
-    func registerWithEmptyTokenShowsNoTokenStatus() async throws {
-        let vm = HomeViewModel(
-            cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
-            api: MockAPIClient(
-                endpointsResult: sampleEndpoints
-            ),
-            cache: MockSecretCache()
-        )
-        await vm.bootstrap(pushToken: nil)
-        try await vm.register(pushToken: "")
-
-        #expect(vm.status?.contains("No APNs token yet") == true)
-    }
-
-    @Test
-    @MainActor
-    func sendTestSuccessUpdatesStatus() async {
+    func sendTestSuccessCompletesWithoutBusyLeak() async {
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
             api: MockAPIClient(
                 endpointsResult: sampleEndpoints,
-                notifyCode: 202
+                notifySuccess: true
             ),
             cache: MockSecretCache()
         )
-        await vm.bootstrap(pushToken: String(repeating: "b", count: 64))
-        await vm.sendTest()
+        vm.prepareForImmediateUse()
+        await vm.syncInBackground(pushToken: String(repeating: "b", count: 64))
+        let success = await vm.sendTest()
 
-        #expect(vm.status == "Sent (202).")
+        #expect(success == true)
+        #expect(vm.secret == sampleBundle.secret)
+        #expect(vm.webhookURL.contains(sampleBundle.secret))
+        #expect(vm.isBusy == false)
     }
 
     @Test
     @MainActor
-    func refreshEndpointsMapsDevices() async throws {
+    func sendTestFailureReturnsFalseAndResetsBusy() async {
+        struct NotifyFailure: Error {}
         let vm = HomeViewModel(
             cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
             api: MockAPIClient(
-                endpointsResult: sampleEndpoints
+                registerError: nil,
+                endpointsResult: sampleEndpoints,
+                endpointsError: nil,
+                notifySuccess: false,
+                notifyError: NotifyFailure()
             ),
             cache: MockSecretCache()
         )
-        await vm.bootstrap(pushToken: String(repeating: "c", count: 64))
-        try await vm.refreshEndpoints()
+        vm.prepareForImmediateUse()
+        await vm.syncInBackground(pushToken: String(repeating: "c", count: 64))
 
-        #expect(vm.endpoints.count == 1)
-        #expect(vm.endpoints.first?.record_name == "dep_test")
+        let success = await vm.sendTest()
+
+        #expect(success == false)
+        #expect(vm.isBusy == false)
     }
 
     @Test
@@ -187,7 +235,27 @@ struct HomeViewModelTests {
         await vm.bootstrap(pushToken: nil)
 
         #expect(vm.secret == cached.secret)
-        #expect(vm.status?.contains("Using cached secret") == true)
+    }
+
+    @Test
+    @MainActor
+    func syncInBackgroundSkipsRegisterWhenTokenAlreadyRegisteredAndFresh() async {
+        let counter = RegisterCounter()
+        let token = String(repeating: "d", count: 64)
+        let metadata = SecretCacheMetadata(
+            lastSyncedAt: Date(),
+            lastRegisteredPushToken: token
+        )
+        let vm = HomeViewModel(
+            cloudKit: MockCloudKitService(bundle: sampleBundle, error: nil),
+            api: CountingAPIClient(counter: counter, endpointsResult: sampleEndpoints),
+            cache: MockSecretCache(stored: sampleBundle, metadata: metadata)
+        )
+
+        vm.prepareForImmediateUse()
+        await vm.syncInBackground(pushToken: token)
+
+        #expect(await counter.value() == 0)
     }
 }
 

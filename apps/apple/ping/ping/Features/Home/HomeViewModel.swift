@@ -4,18 +4,17 @@ import Combine
 
 @MainActor
 final class HomeViewModel: ObservableObject {
-    @Published var secret: String = "Preparing…"
+    @Published var secret: String = "br_usr_pending"
     @Published var webhookURL: String = ""
-    @Published var status: String?
-    @Published var registerLog: String?
-    @Published var endpoints: [EndpointResponse.Device] = []
     @Published var isBusy: Bool = false
-    @Published var isSyncingStartup: Bool = false
 
     private var bundle: SecretBundle?
+    private var metadata: SecretCacheMetadata = .empty
+    private var isBackgroundSyncing = false
     private let cloudKit: CloudKitServiceProtocol
     private let api: APIClientProtocol
     private let cache: SecretCacheProtocol
+    private let minSyncInterval: TimeInterval = 60 * 15
 
     init(
         cloudKit: CloudKitServiceProtocol,
@@ -35,37 +34,51 @@ final class HomeViewModel: ObservableObject {
         )
     }
 
-    func bootstrap(pushToken: String?) async {
+    func prepareForImmediateUse() {
+        metadata = cache.loadMetadata()
         if let cached = cache.load() {
             applyBundle(cached)
-            isSyncingStartup = true
-            status = "Syncing latest data…"
         }
+    }
+
+    func bootstrap(pushToken: String?) async {
+        prepareForImmediateUse()
+        await syncInBackground(pushToken: pushToken)
+    }
+
+    func syncInBackground(pushToken: String?) async {
+        if isBackgroundSyncing {
+            return
+        }
+        if !shouldRunCloudSync() {
+            if let token = pushToken, shouldRegister(token: token) {
+                try? await registerIfNeededSilently(pushToken: token, force: false)
+            }
+            return
+        }
+
+        isBackgroundSyncing = true
+        defer { isBackgroundSyncing = false }
         do {
             let cloudBundle = try await cloudKit.fetchOrCreateSecretBundle()
             applyBundle(cloudBundle)
             _ = cache.save(cloudBundle)
-            isSyncingStartup = false
+            metadata = SecretCacheMetadata(
+                lastSyncedAt: Date(),
+                lastRegisteredPushToken: metadata.lastRegisteredPushToken
+            )
+            cache.saveMetadata(metadata)
             if let token = pushToken, !token.isEmpty {
-                try await register(pushToken: token)
-            } else {
-                status = "Waiting for APNs token. Accept notification permission and re-open app."
+                try? await registerIfNeededSilently(pushToken: token, force: false)
             }
-            try await refreshEndpoints()
         } catch {
-            isSyncingStartup = false
-            if bundle != nil {
-                status = "Using cached secret. Cloud sync failed: \(error.localizedDescription)"
-            } else {
-                status = "Startup failed: \(error.localizedDescription)"
-            }
+            // keep startup quiet; user can still use cached secret
         }
     }
 
     func register(pushToken: String?) async throws {
         guard let bundle else { return }
         guard let token = pushToken, !token.isEmpty else {
-            status = "No APNs token yet. Check push capabilities/signing."
             return
         }
 
@@ -84,12 +97,17 @@ final class HomeViewModel: ObservableObject {
             body: body,
             cloudKitToken: bundle.cloudKitWebAuthToken
         )
-        registerLog = "\(Self.now()): register -> OK"
-        status = "Registered device endpoint."
+        metadata = SecretCacheMetadata(
+            lastSyncedAt: metadata.lastSyncedAt,
+            lastRegisteredPushToken: token
+        )
+        cache.saveMetadata(metadata)
     }
 
-    func sendTest() async {
-        guard let bundle else { return }
+    func sendTest() async -> Bool {
+        guard let bundle else {
+            return false
+        }
         isBusy = true
         defer { isBusy = false }
         do {
@@ -99,17 +117,10 @@ final class HomeViewModel: ObservableObject {
                 message: "If you see this, the webhook works.",
                 url: "https://expo.dev"
             )
-            let code = try await api.postNotify(secret: bundle.secret, payload: payload)
-            status = "Sent (\(code))."
+            return try await api.postNotify(secret: bundle.secret, payload: payload)
         } catch {
-            status = "Send failed: \(error.localizedDescription)"
+            return false
         }
-    }
-
-    func refreshEndpoints() async throws {
-        guard let bundle else { return }
-        let response = try await api.getEndpoints(cloudKitToken: bundle.cloudKitWebAuthToken)
-        endpoints = response.devices
     }
 
     func curlExample() -> String {
@@ -122,8 +133,7 @@ final class HomeViewModel: ObservableObject {
         let jsonData = try? JSONEncoder().encode(payload)
         let json = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         return """
-        curl -X POST \"\(webhookURL)\" \\
-          -H \"Content-Type: application/json\" \\
+        curl -X POST \(webhookURL) \\
           -d '\(json)'
         """
     }
@@ -136,10 +146,38 @@ final class HomeViewModel: ObservableObject {
             .replacingOccurrences(of: "=", with: "")
     }
 
-    private static func now() -> String {
-        let f = DateFormatter()
-        f.timeStyle = .medium
-        return f.string(from: Date())
+    private func shouldRunCloudSync(now: Date = Date()) -> Bool {
+        guard let last = metadata.lastSyncedAt else {
+            return true
+        }
+        return now.timeIntervalSince(last) >= minSyncInterval
+    }
+
+    private func shouldRegister(token: String) -> Bool {
+        metadata.lastRegisteredPushToken != token
+    }
+
+    private func registerIfNeededSilently(pushToken: String, force: Bool) async throws {
+        guard let bundle else { return }
+        if !force && !shouldRegister(token: pushToken) {
+            return
+        }
+        let body = RegisterRequestBody(
+            push_token: pushToken,
+            user_key_digest: Self.digest(bundle.secret),
+            key_digest: Self.digest(bundle.secret),
+            record_name: bundle.deviceRecordName,
+            user_record_name: bundle.userRecordName
+        )
+        try await api.postRegister(
+            body: body,
+            cloudKitToken: bundle.cloudKitWebAuthToken
+        )
+        metadata = SecretCacheMetadata(
+            lastSyncedAt: metadata.lastSyncedAt,
+            lastRegisteredPushToken: pushToken
+        )
+        cache.saveMetadata(metadata)
     }
 
     private func applyBundle(_ bundle: SecretBundle) {
