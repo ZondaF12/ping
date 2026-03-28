@@ -2,11 +2,13 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var pushTokenStore: PushTokenStore
+    @EnvironmentObject private var notificationHistoryStore: NotificationHistoryStore
     @StateObject private var vm = HomeViewModel()
     @State private var copiedToastVisible = false
     @State private var hasStarted = false
     @State private var sendButtonState: SendButtonState = .idle
     @State private var showSettings = false
+    @State private var showRecentNotifications = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -54,6 +56,12 @@ struct HomeView: View {
                 try? await vm.register(pushToken: token)
             }
         }
+        .sheet(isPresented: $showRecentNotifications) {
+            NavigationStack {
+                RecentNotificationsView()
+            }
+            .environmentObject(notificationHistoryStore)
+        }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 SettingsView()
@@ -68,6 +76,14 @@ struct HomeView: View {
         .preferredColorScheme(.dark)
         .navigationTitle("")
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showRecentNotifications = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                }
+                .accessibilityLabel("Recent notifications")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showSettings = true
@@ -131,6 +147,7 @@ struct HomeView_Previews: PreviewProvider {
     static var previews: some View {
         HomeView()
             .environmentObject(PushTokenStore())
+            .environmentObject(NotificationHistoryStore())
     }
 }
 

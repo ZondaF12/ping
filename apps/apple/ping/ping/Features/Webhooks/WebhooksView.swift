@@ -69,7 +69,7 @@ struct WebhooksView: View {
                 }
             )
             .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
+            .presentationDragIndicator(.hidden)
         }
     }
 

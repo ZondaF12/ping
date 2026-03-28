@@ -38,6 +38,10 @@ struct HomeHeroView: View {
                     )
             }
         }
+
+        Text("Ping this device with the API call below.")
+            .font(.system(.title3, design: .rounded).weight(.semibold))
+            .foregroundStyle(.white.opacity(0.95))
     }
 }
 

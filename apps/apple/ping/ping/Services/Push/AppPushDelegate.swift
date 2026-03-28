@@ -3,6 +3,8 @@ import UserNotifications
 
 final class AppPushDelegate: NSObject, UIApplicationDelegate {
     let pushTokenStore = PushTokenStore()
+    /// Set from `pingApp` after the store is created (device-local history only; never uploaded).
+    weak var historyStore: NotificationHistoryStore?
 
     func application(
         _ application: UIApplication,
@@ -37,6 +39,9 @@ extension AppPushDelegate: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
+        await MainActor.run {
+            historyStore?.recordIfNew(notification)
+        }
         return [.banner, .badge, .sound]
     }
 
@@ -44,6 +49,9 @@ extension AppPushDelegate: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
+        await MainActor.run {
+            historyStore?.recordIfNew(response.notification)
+        }
         guard
             let rawURL = response.notification.request.content.userInfo["url"] as? String,
             let destination = URL(string: rawURL),
