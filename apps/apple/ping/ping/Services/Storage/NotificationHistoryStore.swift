@@ -67,6 +67,7 @@ final class NotificationHistoryStore: ObservableObject {
     func clearAll() {
         entries = []
         saveEntries()
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
     }
 
     private func applyPruneAndSave() {
