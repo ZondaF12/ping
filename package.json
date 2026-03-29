@@ -1,22 +1,15 @@
 {
-  "name": "ping",
-  "private": true,
-  "packageManager": "pnpm@10.33.0",
-  "scripts": {
-    "api": "pnpm --filter @ping/api start:dev",
-    "mobile": "pnpm --filter @ping/mobile start",
-    "docs:dev": "pnpm --filter @ping/docs dev",
-    "build": "pnpm -r build",
-    "start": "pnpm --filter @ping/api start:prod",
-    "lint": "pnpm -r lint"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "pnpm": {
-    "overrides": {
-      "react": "19.2.4",
-      "react-dom": "19.2.4"
+    "name": "ping",
+    "private": true,
+    "packageManager": "pnpm@10.33.0",
+    "scripts": {
+        "api": "pnpm --filter @ping/api start:dev",
+        "mobile": "pnpm --filter @ping/mobile start",
+        "build": "pnpm -r build",
+        "start": "pnpm --filter @ping/api start:prod",
+        "lint": "pnpm -r lint"
+    },
+    "engines": {
+        "node": ">=20"
     }
-  }
 }
