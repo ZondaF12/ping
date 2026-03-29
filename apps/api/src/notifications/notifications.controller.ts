@@ -158,7 +158,7 @@ export class NotificationsController {
     return typeof v === 'string' ? v : undefined;
   }
 
-  /** Build a notify body object from GET query parameters (brrr-style). */
+  /** Build a notify body object from GET query parameters. */
   private notifyPayloadFromQuery(
     query: Record<string, unknown>,
   ): Record<string, string> | null {

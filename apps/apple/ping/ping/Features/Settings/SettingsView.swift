@@ -5,8 +5,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
-    private static let docsURL = URL(string: "https://brrr.now/how-it-works/")!
-    private static let guidesURL = URL(string: "https://brrr.now/how-it-works/#guides")!
+    private static let docsURL = URL(string: "https://ruaridhbell.com")!
+    private static let guidesURL = URL(string: "https://ruaridhbell.com")!
 
     var body: some View {
         List {

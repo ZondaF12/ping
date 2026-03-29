@@ -71,7 +71,7 @@ struct HomeCurlCardView: View {
 
             Divider().overlay(.white.opacity(0.08))
 
-            ScrollView(.horizontal, showsIndicators: true) {
+            ScrollView(.horizontal, showsIndicators: false) {
                 Text(styledCurlExample)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
@@ -120,7 +120,7 @@ struct HomeActionButtonsView: View {
 
 struct HomeDocsLinkView: View {
     var body: some View {
-        Link(destination: URL(string: "https://brrr.now/how-it-works/")!) {
+        Link(destination: URL(string: "https://ruaridhbell.com")!) {
             Label("Read docs", systemImage: "doc.text")
                 .font(.system(.headline, design: .rounded).weight(.semibold))
                 .foregroundStyle(.white.opacity(0.72))

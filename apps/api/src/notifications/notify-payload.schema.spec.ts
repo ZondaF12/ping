@@ -6,7 +6,7 @@ describe('notifyPayloadSchema', () => {
     expect(r.success).toBe(true);
   });
 
-  it('accepts brrr-style optional fields including hyphenated keys', () => {
+  it('accepts optional fields including hyphenated keys', () => {
     const r = notifyPayloadSchema.safeParse({
       message: 'Coffee offline',
       title: 'Coffee Machine Offline',
