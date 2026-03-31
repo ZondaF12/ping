@@ -17,6 +17,7 @@ export type ApnsAlertMessage = {
   expirationDate?: Date;
   interruptionLevel?: 'passive' | 'active' | 'time-sensitive';
   filterCriteria?: string;
+  threadId?: string;
 };
 
 @Injectable()
@@ -152,6 +153,9 @@ export class ApnsPushService {
     }
     if (message.filterCriteria) {
       aps['filter-criteria'] = message.filterCriteria;
+    }
+    if (message.threadId) {
+      aps['thread-id'] = message.threadId;
     }
     if (message.imageUrl) {
       aps['mutable-content'] = 1;

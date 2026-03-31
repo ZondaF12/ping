@@ -16,11 +16,13 @@ describe('notifyPayloadSchema', () => {
       expiration_date: '2026-04-23T09:00:00.000Z',
       'interruption-level': 'time-sensitive',
       'filter-criteria': 'work',
+      thread_id: 'kitchen-alerts',
     });
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data['interruption-level']).toBe('time-sensitive');
       expect(r.data['filter-criteria']).toBe('work');
+      expect(r.data.thread_id).toBe('kitchen-alerts');
     }
   });
 

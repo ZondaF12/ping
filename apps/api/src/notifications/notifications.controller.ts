@@ -180,6 +180,7 @@ export class NotificationsController {
     add('expiration_date');
     add('interruption-level');
     add('filter-criteria');
+    add('thread_id');
     return out;
   }
 
@@ -193,6 +194,7 @@ export class NotificationsController {
       expiration_date: undefined,
       'interruption-level': undefined,
       'filter-criteria': undefined,
+      thread_id: undefined,
     };
   }
 
@@ -215,6 +217,11 @@ export class NotificationsController {
     }
     const d = new Date(payload.expiration_date);
     return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+
+  private threadIdFromPayload(payload: NotifyPayload): string | undefined {
+    const maybeThreadId = (payload as Record<string, unknown>).thread_id;
+    return typeof maybeThreadId === 'string' ? maybeThreadId : undefined;
   }
 
   private async notifyWithPayload(
@@ -261,6 +268,7 @@ export class NotificationsController {
             expirationDate: this.expirationDateFromPayload(payload),
             interruptionLevel: payload['interruption-level'],
             filterCriteria: payload['filter-criteria'],
+            threadId: this.threadIdFromPayload(payload),
           },
         );
       const invalid = new Set(invalidTokens);
