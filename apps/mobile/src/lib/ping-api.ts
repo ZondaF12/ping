@@ -31,6 +31,7 @@ export async function postWebhookNotify(
         subtitle?: string;
         message: string;
         url?: string;
+        thread_id?: string;
     },
 ): Promise<{ ok: boolean; status: number; text: string }> {
     const url = `${base}/v1/${encodeURIComponent(secret)}`;

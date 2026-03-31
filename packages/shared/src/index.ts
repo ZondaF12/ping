@@ -11,6 +11,7 @@ export const notifyPayloadSchema = z.object({
         .enum(["passive", "active", "time-sensitive"])
         .optional(),
     "filter-criteria": z.string().min(1).max(256).optional(),
+    thread_id: z.string().min(1).max(256).optional(),
 });
 
 export type NotifyPayload = z.infer<typeof notifyPayloadSchema>;

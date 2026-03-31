@@ -89,6 +89,8 @@ curl -X POST "http://127.0.0.1:3000/v1/YOUR_SECRET_HERE" \
 
 `message` is required. `title`, `subtitle`, and `url` are optional. `url` is passed in push `data` so the app can open it when the user taps the notification.
 
+Optional **`thread_id`** (string, max 256 characters) groups notifications in Notification Center on iOS: the server sets Apple’s `aps["thread-id"]` to this value. Omit it for the default ungrouped behavior. You can also pass `thread_id` on **GET** notify URLs as a query parameter (same as other fields).
+
 ## Mobile app
 
 ```bash
