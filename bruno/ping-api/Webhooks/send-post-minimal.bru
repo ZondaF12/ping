@@ -1,0 +1,20 @@
+meta {
+  name: POST send (Bearer, minimal JSON)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/v1/send
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{secret}}
+}
+
+body {
+  {
+    "message": "Hello world! 🚀"
+  }
+}

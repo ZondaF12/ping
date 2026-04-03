@@ -91,6 +91,17 @@ curl -X POST "http://127.0.0.1:3000/v1/YOUR_SECRET_HERE" \
 
 Optional **`thread_id`** (string, max 256 characters) groups notifications in Notification Center on iOS: the server sets Apple’s `aps["thread-id"]` to this value. Omit it for the default ungrouped behavior. You can also pass `thread_id` on **GET** notify URLs as a query parameter (same as other fields).
 
+### Send without putting the secret in the URL
+
+Use **`GET /v1/send`** or **`POST /v1/send`** with the webhook secret in **`Authorization: Bearer YOUR_SECRET_HERE`** (same JSON/query fields as above). The legacy **`/v1/YOUR_SECRET_HERE`** paths are unchanged.
+
+```bash
+curl -X POST "http://127.0.0.1:3000/v1/send" \
+  -H "Authorization: Bearer YOUR_SECRET_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Widget is available again.","url":"https://example.com"}'
+```
+
 ## Mobile app
 
 ```bash

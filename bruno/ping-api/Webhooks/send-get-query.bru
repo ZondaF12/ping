@@ -1,0 +1,14 @@
+meta {
+  name: GET send (Bearer, query params)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/v1/send?message=Hello%20world%21%20%F0%9F%9A%80&title=Quick%20test&url=https%3A%2F%2Fexample.com
+  body: none
+}
+
+headers {
+  Authorization: Bearer {{secret}}
+}

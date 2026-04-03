@@ -198,6 +198,19 @@ export class NotificationsController {
     };
   }
 
+  /** Raw webhook secret from `Authorization: Bearer <secret>`, or null if missing/invalid. */
+  private secretFromBearerAuth(authorization?: string): string | null {
+    if (!authorization || typeof authorization !== 'string') {
+      return null;
+    }
+    const trimmed = authorization.trim();
+    if (!/^Bearer\s/i.test(trimmed)) {
+      return null;
+    }
+    const secret = trimmed.replace(/^Bearer\s+/i, '').trim();
+    return secret.length > 0 ? secret : null;
+  }
+
   private buildNotifyData(
     payload: NotifyPayload,
   ): Record<string, unknown> | undefined {
@@ -282,6 +295,50 @@ export class NotificationsController {
     } catch {
       return { success: false };
     }
+  }
+
+  @Get('send')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  async notifySendGet(
+    @Headers('authorization') authorization: string | undefined,
+    @Query() query: Record<string, unknown>,
+  ): Promise<{ success: boolean }> {
+    const secret = this.secretFromBearerAuth(authorization);
+    if (!secret) {
+      return { success: false };
+    }
+    const raw = this.notifyPayloadFromQuery(query);
+    if (!raw) {
+      return { success: false };
+    }
+    const parsed = notifyPayloadSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { success: false };
+    }
+    return this.notifyWithPayload(secret, parsed.data);
+  }
+
+  @Post('send')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  async notifySendPost(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: unknown,
+  ): Promise<{ success: boolean }> {
+    const secret = this.secretFromBearerAuth(authorization);
+    if (!secret) {
+      return { success: false };
+    }
+    const parsed = pingNotifyPayloadSchema.safeParse(body);
+    if (!parsed.success) {
+      return { success: false };
+    }
+    const payload =
+      typeof parsed.data === 'string'
+        ? this.notifyPayloadFromStringBody(parsed.data)
+        : notifyPayloadSchema.parse(parsed.data);
+    return this.notifyWithPayload(secret, payload);
   }
 
   @Get(':secret')
