@@ -107,7 +107,6 @@ struct NotificationHistoryDetailSheet: View {
                         .resizable()
                         .scaledToFill()
                         .frame(maxWidth: .infinity)
-                        .frame(height: 200)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 case .failure:
