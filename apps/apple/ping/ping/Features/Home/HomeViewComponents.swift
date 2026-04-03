@@ -89,13 +89,58 @@ struct HomeCurlCardView: View {
     }
 }
 
-struct HomeActionButtonsView: View {
+/// Copy / share menus for webhook secret, URL, and example cURL (home, webhooks settings, device sheet).
+struct WebhookCopyShareMenusView: View {
+    let secretText: String
+    let urlText: String
     let curlText: String
-    let onCopy: () -> Void
+    let onCopy: (String) -> Void
+
+    private var secretReady: Bool {
+        !secretText.isEmpty && secretText != "ping_usr_pending"
+    }
+
+    private var urlReady: Bool { !urlText.isEmpty }
+
+    private var curlReady: Bool { urlReady && !curlText.isEmpty }
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onCopy) {
+            Menu {
+                Button(
+                    action: { onCopy(curlText) },
+                    label: {
+                        HStack {
+                            Text("Copy cURL")
+                            Spacer()
+                            Image(systemName: "apple.terminal")
+                        }
+                    }
+                )
+                .disabled(!curlReady)
+                Button(
+                    action: { onCopy(urlText) },
+                    label: {
+                        HStack {
+                            Text("Copy URL")
+                            Spacer()
+                            Image(systemName: "link")
+                        }
+                    }
+                )
+                .disabled(!urlReady)
+                Button(
+                    action: { onCopy(secretText) },
+                    label: {
+                        HStack {
+                            Text("Copy Secret")
+                            Spacer()
+                            Image(systemName: "key")
+                        }
+                    }
+                )
+                .disabled(!secretReady)
+            } label: {
                 HStack {
                     Text("Copy")
                     Spacer()
@@ -104,8 +149,37 @@ struct HomeActionButtonsView: View {
                 .padding(.horizontal)
             }
             .buttonStyle(PillButtonStyle(background: Color(red: 0.64, green: 0.97, blue: 0.31), foreground: .black))
+            .disabled(!secretReady && !urlReady && !curlReady)
 
-            ShareLink(item: curlText) {
+            Menu {
+                if curlReady {
+                    ShareLink(item: curlText) {
+                        HStack {
+                            Text("Share cURL")
+                            Spacer()
+                            Image(systemName: "apple.terminal")
+                        }
+                    }
+                }
+                if urlReady {
+                    ShareLink(item: urlText) {
+                        HStack {
+                            Text("Share URL")
+                            Spacer()
+                            Image(systemName: "link")
+                        }
+                    }
+                }
+                if secretReady {
+                    ShareLink(item: secretText) {
+                        HStack {
+                            Text("Share Secret")
+                            Spacer()
+                            Image(systemName: "key")
+                        }
+                    }
+                }
+            } label: {
                 HStack {
                     Text("Share")
                     Spacer()
@@ -114,7 +188,24 @@ struct HomeActionButtonsView: View {
                 .padding(.horizontal)
             }
             .buttonStyle(PillButtonStyle(background: .white, foreground: .black))
+            .disabled(!secretReady && !urlReady && !curlReady)
         }
+    }
+}
+
+struct HomeActionButtonsView: View {
+    let secretText: String
+    let urlText: String
+    let curlText: String
+    let onCopy: (String) -> Void
+
+    var body: some View {
+        WebhookCopyShareMenusView(
+            secretText: secretText,
+            urlText: urlText,
+            curlText: curlText,
+            onCopy: onCopy
+        )
     }
 }
 

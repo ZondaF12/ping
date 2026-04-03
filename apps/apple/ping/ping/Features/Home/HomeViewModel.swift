@@ -144,6 +144,14 @@ final class HomeViewModel: ObservableObject {
         return "\(AppConfig.apiBase)/v1/\(bundle.deviceSecret)"
     }
 
+    /// Raw per-device webhook secret (empty if no bundle or no device secret).
+    var deviceSecret: String {
+        guard let bundle = currentBundle, !bundle.deviceSecret.isEmpty else {
+            return ""
+        }
+        return bundle.deviceSecret
+    }
+
     func sendDeviceTest() async -> Bool {
         guard let bundle = currentBundle, !bundle.deviceSecret.isEmpty else {
             return false

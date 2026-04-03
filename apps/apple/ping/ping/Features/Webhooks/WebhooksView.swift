@@ -99,10 +99,10 @@ struct WebhooksView: View {
             .listRowSeparator(.hidden, edges: .bottom)
 
             WebhooksUserActionRow(
+                secretText: homeVM.secret,
+                urlText: homeVM.webhookURL,
                 curlText: homeVM.curlExample(),
-                onCopy: {
-                    HomeClipboard.copy(text: homeVM.curlExample())
-                },
+                onCopy: { HomeClipboard.copy(text: $0) },
                 onRegenerateTapped: {
                     confirmRotateUser = true
                 }
@@ -290,31 +290,20 @@ struct WebhooksView: View {
 }
 
 private struct WebhooksUserActionRow: View {
+    let secretText: String
+    let urlText: String
     let curlText: String
-    let onCopy: () -> Void
+    let onCopy: (String) -> Void
     let onRegenerateTapped: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onCopy) {
-                HStack {
-                    Text("Copy")
-                    Spacer()
-                    Image(systemName: "doc.on.doc")
-                }
-                .padding(.horizontal)
-            }
-            .buttonStyle(PillButtonStyle(background: Color(red: 0.64, green: 0.97, blue: 0.31), foreground: .black))
-
-            ShareLink(item: curlText) {
-                HStack {
-                    Text("Share")
-                    Spacer()
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .padding(.horizontal)
-            }
-            .buttonStyle(PillButtonStyle(background: .white, foreground: .black))
+            WebhookCopyShareMenusView(
+                secretText: secretText,
+                urlText: urlText,
+                curlText: curlText,
+                onCopy: onCopy
+            )
 
             Menu {
                 Button("Regenerate user URL", role: .destructive) {

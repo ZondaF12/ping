@@ -24,8 +24,10 @@ struct HomeView: View {
                     onSendTapped: handleSendTestTap
                 )
                 HomeActionButtonsView(
+                    secretText: vm.secret,
+                    urlText: vm.webhookURL,
                     curlText: vm.curlExample(),
-                    onCopy: copyCurlSnippet
+                    onCopy: copyToClipboard
                 )
                 HomeDocsLinkView()
                 Spacer()
@@ -126,8 +128,8 @@ struct HomeView: View {
         }
     }
 
-    private func copyCurlSnippet() {
-        HomeClipboard.copy(text: vm.curlExample())
+    private func copyToClipboard(_ text: String) {
+        HomeClipboard.copy(text: text)
         withAnimation(.easeInOut(duration: 0.18)) {
             copiedToastVisible = true
         }
